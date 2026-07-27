@@ -1,0 +1,237 @@
+// Taller — tiny UI helpers: DOM builder, i18n, toasts, modals, hash router glue.
+
+import { STRINGS } from './strings.js';
+
+// ---------- i18n ----------
+let _lang = null;
+
+export function detectLang() {
+  const saved = localStorage.getItem('taller-lang');
+  if (saved && STRINGS[saved]) return saved;
+  const nav = (navigator.language || 'en').slice(0, 2).toLowerCase();
+  return STRINGS[nav] ? nav : 'en';
+}
+export function getLang() { if (!_lang) _lang = detectLang(); return _lang; }
+export function setLang(l) { if (STRINGS[l]) { _lang = l; localStorage.setItem('taller-lang', l); } }
+
+export function t(path, vars) {
+  const parts = path.split('.');
+  let cur = STRINGS[getLang()];
+  for (const p of parts) { cur = cur && cur[p]; }
+  if (cur === undefined) { // fallback to EN
+    cur = STRINGS.en;
+    for (const p of parts) { cur = cur && cur[p]; }
+  }
+  if (typeof cur !== 'string') return path;
+  if (vars) for (const [k, v] of Object.entries(vars)) cur = cur.split(`{${k}}`).join(String(v));
+  return cur;
+}
+
+// Plural-aware lookup. The string may hold a "singular|plural" pair; the correct
+// side is chosen from n (n === 1 → singular). Falls back to the plain string.
+export function tn(path, n, vars) {
+  const s = t(path, { ...(vars || {}), n });
+  if (s.indexOf('|') === -1) return s;
+  const parts = s.split('|');
+  return (n === 1 ? parts[0] : parts[1]) || parts[0];
+}
+
+// ---------- DOM ----------
+export function el(tag, attrs = {}, ...children) {
+  const node = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs || {})) {
+    if (v === null || v === undefined || v === false) continue;
+    if (k === 'class') node.className = v;
+    else if (k === 'html') node.innerHTML = v; // only for trusted app strings
+    else if (k.startsWith('on') && typeof v === 'function') node.addEventListener(k.slice(2), v);
+    else if (k === 'dataset') Object.assign(node.dataset, v);
+    else node.setAttribute(k, v === true ? '' : v);
+  }
+  for (const c of children.flat(Infinity)) {
+    if (c === null || c === undefined || c === false) continue;
+    node.append(c.nodeType ? c : document.createTextNode(String(c)));
+  }
+  return node;
+}
+
+export function clear(node) { while (node.firstChild) node.removeChild(node.firstChild); return node; }
+
+export function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
+// Highlight query terms inside plain text → returns HTML string (input escaped first).
+export function highlight(text, terms) {
+  let html = escapeHtml(text);
+  const uniq = [...new Set(terms.filter(w => w && w.length >= 2))]
+    .sort((a, b) => b.length - a.length);
+  for (const w of uniq) {
+    const safe = w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    html = html.replace(new RegExp(`(${safe})`, 'gi'), '<mark>$1</mark>');
+  }
+  return html;
+}
+
+// ---------- toast ----------
+// action (optional): { label, onClick } renders a tappable button (e.g. Undo,
+// or "Reload" for an update) and extends the visible time.
+let toastTimer = null;
+export function toast(msg, ms = 2600, action = null) {
+  let tEl = document.getElementById('toast');
+  if (!tEl) {
+    tEl = el('div', { id: 'toast', role: 'status', 'aria-live': 'polite' });
+    document.body.append(tEl);
+  }
+  clear(tEl);
+  tEl.append(el('span', {}, msg));
+  if (action && action.label) {
+    tEl.append(el('button', {
+      class: 'toast-action',
+      onclick: () => { tEl.classList.remove('show'); try { action.onClick(); } catch (e) { /* ignore */ } },
+    }, action.label));
+  }
+  tEl.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => tEl.classList.remove('show'), action ? Math.max(ms, 6000) : ms);
+}
+
+// ---------- modal ----------
+let _modalSeq = 0;
+export function modal({ title, body, actions = [], onClose }) {
+  const prevFocus = document.activeElement;
+  const overlay = el('div', { class: 'modal-overlay' });
+  const titleId = 'modal-title-' + (++_modalSeq);
+  const box = el('div', { class: 'modal', role: 'dialog', 'aria-modal': 'true', tabindex: '-1' });
+  if (title) { box.setAttribute('aria-labelledby', titleId); box.append(el('h2', { id: titleId }, title)); }
+  const bodyWrap = el('div', { class: 'modal-body' });
+  if (body) bodyWrap.append(body.nodeType ? body : el('p', {}, body));
+  box.append(bodyWrap);
+  let closed = false;
+  const close = () => {
+    if (closed) return; closed = true;
+    document.removeEventListener('keydown', onKey);
+    overlay.remove();
+    if (onClose) onClose();
+    if (prevFocus && prevFocus.focus) { try { prevFocus.focus({ preventScroll: true }); } catch (e) { /* ignore */ } }
+  };
+  if (actions.length) {
+    const row = el('div', { class: 'modal-actions' });
+    for (const a of actions) {
+      row.append(el('button', {
+        class: 'btn ' + (a.kind || 'btn-secondary'),
+        onclick: () => { const r = a.onClick ? a.onClick() : undefined; Promise.resolve(r).then((rr) => { if (rr !== false) close(); }); },
+      }, a.label));
+    }
+    box.append(row);
+  }
+  // keyboard: Escape closes; Tab is trapped within the dialog
+  const onKey = (e) => {
+    if (e.key === 'Escape') { e.preventDefault(); close(); return; }
+    if (e.key === 'Tab') {
+      const f = box.querySelectorAll('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])');
+      if (!f.length) return;
+      const first = f[0], last = f[f.length - 1];
+      if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+      else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+    }
+  };
+  document.addEventListener('keydown', onKey);
+  overlay.append(box);
+  overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
+  document.body.append(overlay);
+  // move focus into the dialog (first field, else the box)
+  setTimeout(() => {
+    const focusable = box.querySelector('input:not([type=hidden]), textarea, select, button');
+    (focusable || box).focus({ preventScroll: true });
+  }, 40);
+  return { close, box };
+}
+
+export function confirmModal(text, onYes, yesLabel) {
+  modal({
+    title: null, body: text,
+    actions: [
+      { label: t('common.cancel'), kind: 'btn-secondary' },
+      { label: yesLabel || t('common.ok'), kind: 'btn-danger', onClick: onYes },
+    ],
+  });
+}
+
+// Promise-based confirm: resolves true/false.
+export function confirmAsync(text, yesLabel) {
+  return new Promise((resolve) => {
+    let decided = false;
+    modal({
+      title: null, body: text,
+      actions: [
+        { label: t('common.cancel'), kind: 'btn-secondary', onClick: () => { decided = true; resolve(false); } },
+        { label: yesLabel || t('common.ok'), kind: 'btn-primary', onClick: () => { decided = true; resolve(true); } },
+      ],
+      onClose: () => { if (!decided) resolve(false); },
+    });
+  });
+}
+
+// ---------- clipboard ----------
+export async function copyText(text) {
+  try {
+    await navigator.clipboard.writeText(text);
+    return true;
+  } catch (e) {
+    // fallback for webviews without clipboard permission
+    const ta = el('textarea', { style: 'position:fixed;left:-9999px;top:0' });
+    ta.value = text;
+    document.body.append(ta);
+    ta.select();
+    let ok = false;
+    try { ok = document.execCommand('copy'); } catch (e2) { ok = false; }
+    ta.remove();
+    return ok;
+  }
+}
+
+// ---------- misc ----------
+export function fmtBytes(n) {
+  if (!n) return '0 MB';
+  const mb = n / (1024 * 1024);
+  if (mb < 1) return (n / 1024).toFixed(0) + ' KB';
+  if (mb < 1024) return mb.toFixed(1) + ' MB';
+  return (mb / 1024).toFixed(2) + ' GB';
+}
+
+export function debounce(fn, ms) {
+  let id = null;
+  return (...args) => { clearTimeout(id); id = setTimeout(() => fn(...args), ms); };
+}
+
+export function isOnline() { return navigator.onLine !== false; }
+
+export function uuid() {
+  return (crypto.randomUUID && crypto.randomUUID()) ||
+    'id-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 10);
+}
+
+// Share the app itself (native sheet when available, copy-link fallback).
+export async function shareApp() {
+  const url = location.origin + location.pathname;
+  const data = { title: 'Taller', text: t('brand.shareText'), url };
+  if (navigator.share) {
+    try { await navigator.share(data); return; } catch (e) { if (e && e.name === 'AbortError') return; }
+  }
+  if (await copyText(url)) toast(t('library.linkCopied'));
+}
+
+// Share arbitrary text (feedback etc.) via native sheet; returns false if unsupported.
+export async function shareText(text, title) {
+  if (navigator.share) {
+    try { await navigator.share({ title: title || 'Taller', text }); return true; }
+    catch (e) { if (e && e.name === 'AbortError') return true; }
+  }
+  return false;
+}
+
+export function todayISO() {
+  const d = new Date();
+  const p = (x) => String(x).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+}

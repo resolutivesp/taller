@@ -1,0 +1,16 @@
+Taller — offline workshop for biomedical technicians
+Copyright 2026 The Taller project contributors
+
+Licensed under the Apache License, Version 2.0.
+
+This product bundles third-party software and assets:
+- pdf.js (Mozilla) — Apache-2.0 — vendor/pdfjs/
+- MiniSearch (Luca Ongaro) — MIT — vendor/minisearch/
+- tesseract.js and tesseract.js-core (Project Naptha) — Apache-2.0 — vendor/tesseract/
+- Tesseract language data (tessdata, Google/Tesseract OCR contributors) — Apache-2.0 — vendor/tesseract/*.traineddata.gz
+- Lucide icons (Lucide contributors) — ISC — inlined in js/icons.js (see vendor/LICENSE-lucide.txt)
+- Manrope typeface (Mikhail Sharanda / Google Fonts) — SIL OFL 1.1 — vendor/fonts/
+- QR Code Generator (Kazuhiko Arase) — MIT — vendor/qr/
+
+demo/demo-manual.pdf is an ORIGINAL fictional document created for this project
+(the "OpenMed SP-100" device does not exist). It may be reused under Apache-2.0.

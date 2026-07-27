@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Taller — Your service manuals. Searchable. Offline.</title>
+  <meta name="description" content="Free, open-source, offline app for biomedical equipment technicians: import your PDF service manuals, search them without internet, get answers grounded in the exact page, and keep a quick fault log. No accounts, no ads, ever.">
+  <meta name="theme-color" content="#0e7c72">
+  <meta property="og:title" content="Taller — your service manuals, searchable, offline">
+  <meta property="og:description" content="Free, open-source app for biomedical technicians. Import your PDF manuals, search them offline, get page-cited answers, log repairs in seconds.">
+  <meta property="og:type" content="website">
+  <meta property="og:image" content="icons/icon-512.png">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icons/icon-192.png">
+  <link rel="preload" href="vendor/fonts/manrope-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+  <aside id="sidebrand" aria-hidden="true"></aside>
+
+  <div id="app">
+    <header id="appbar">
+      <span class="brandmark"><img src="icons/icon.svg" alt=""></span>
+      <span class="app-name">Taller</span>
+      <span class="beta-chip">BETA</span>
+      <span class="bar-spacer"></span>
+    </header>
+
+    <main id="view"></main>
+
+    <nav id="tabs" aria-label="Main"></nav>
+  </div>
+
+  <noscript>Taller needs JavaScript. / Taller nécessite JavaScript. / Taller necesita JavaScript.</noscript>
+
+  <script src="vendor/minisearch/minisearch.js"></script>
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>
