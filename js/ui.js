@@ -28,12 +28,16 @@ export function t(path, vars) {
 }
 
 // Plural-aware lookup. The string may hold a "singular|plural" pair; the correct
-// side is chosen from n (n === 1 → singular). Falls back to the plain string.
+// side is chosen from n. Falls back to the plain string.
+// French takes the SINGULAR for 0 as well as 1 ("0 entrée", not "0 entrées"),
+// unlike EN/ES/PT — the previous n === 1 test produced wrong French throughout.
 export function tn(path, n, vars) {
   const s = t(path, { ...(vars || {}), n });
   if (s.indexOf('|') === -1) return s;
   const parts = s.split('|');
-  return (n === 1 ? parts[0] : parts[1]) || parts[0];
+  const abs = Math.abs(Number(n) || 0);
+  const singular = getLang() === 'fr' ? abs < 2 : abs === 1;
+  return (singular ? parts[0] : parts[1]) || parts[0];
 }
 
 // ---------- DOM ----------
@@ -43,8 +47,12 @@ export function el(tag, attrs = {}, ...children) {
     if (v === null || v === undefined || v === false) continue;
     if (k === 'class') node.className = v;
     else if (k === 'html') node.innerHTML = v; // only for trusted app strings
-    else if (k.startsWith('on') && typeof v === 'function') node.addEventListener(k.slice(2), v);
-    else if (k === 'dataset') Object.assign(node.dataset, v);
+    else if (k.startsWith('on')) {
+      // Functions only. A STRING here would fall through to setAttribute and
+      // create a live inline handler out of whatever produced it — one refactor
+      // away from being an injection sink. Refuse rather than silently allow.
+      if (typeof v === 'function') node.addEventListener(k.slice(2), v);
+    } else if (k === 'dataset') Object.assign(node.dataset, v);
     else node.setAttribute(k, v === true ? '' : v);
   }
   for (const c of children.flat(Infinity)) {
@@ -60,16 +68,26 @@ export function escapeHtml(s) {
   return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }
 
-// Highlight query terms inside plain text → returns HTML string (input escaped first).
+// Highlight query terms inside plain text → returns HTML string.
+// Matching is done on the RAW text and the escaping applied afterwards, so a
+// query term like "mark", "lt" or "amp" can no longer match inside the markup
+// or the HTML entities this function itself produces (which used to mangle the
+// snippet into "&<mark>lt</mark>;").
 export function highlight(text, terms) {
-  let html = escapeHtml(text);
-  const uniq = [...new Set(terms.filter(w => w && w.length >= 2))]
+  const src = String(text);
+  const uniq = [...new Set((terms || []).filter(w => w && w.length >= 2))]
     .sort((a, b) => b.length - a.length);
-  for (const w of uniq) {
-    const safe = w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    html = html.replace(new RegExp(`(${safe})`, 'gi'), '<mark>$1</mark>');
+  if (!uniq.length) return escapeHtml(src);
+  const rx = new RegExp('(' + uniq.map(w => w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|') + ')', 'gi');
+  let out = '';
+  let last = 0;
+  let m;
+  while ((m = rx.exec(src)) !== null) {
+    if (m[0] === '') { rx.lastIndex++; continue; } // guard against zero-length matches
+    out += escapeHtml(src.slice(last, m.index)) + '<mark>' + escapeHtml(m[0]) + '</mark>';
+    last = m.index + m[0].length;
   }
-  return html;
+  return out + escapeHtml(src.slice(last));
 }
 
 // ---------- toast ----------
@@ -97,6 +115,7 @@ export function toast(msg, ms = 2600, action = null) {
 
 // ---------- modal ----------
 let _modalSeq = 0;
+let _modalDepth = 0;
 export function modal({ title, body, actions = [], onClose }) {
   const prevFocus = document.activeElement;
   const overlay = el('div', { class: 'modal-overlay' });
@@ -106,11 +125,27 @@ export function modal({ title, body, actions = [], onClose }) {
   const bodyWrap = el('div', { class: 'modal-body' });
   if (body) bodyWrap.append(body.nodeType ? body : el('p', {}, body));
   box.append(bodyWrap);
+  // Hide the rest of the app from assistive tech while the dialog is open,
+  // otherwise a screen-reader user simply swipes past the dialog into the page
+  // behind it and never knows a decision was being asked of them.
+  // Reference-counted: modals nest (the OCR chooser opens the progress modal,
+  // then closes itself), and an unconditional un-hide on the inner close left
+  // the page reachable behind a dialog that was still open.
+  _modalDepth++;
+  const bg = [document.getElementById('app'), document.getElementById('appbar')].filter(Boolean);
+  if (_modalDepth === 1) {
+    for (const nEl of bg) { nEl.setAttribute('aria-hidden', 'true'); try { nEl.inert = true; } catch (e) { /* ignore */ } }
+  }
+
   let closed = false;
   const close = () => {
     if (closed) return; closed = true;
     document.removeEventListener('keydown', onKey);
     overlay.remove();
+    _modalDepth = Math.max(0, _modalDepth - 1);
+    if (_modalDepth === 0) {
+      for (const nEl of bg) { nEl.removeAttribute('aria-hidden'); try { nEl.inert = false; } catch (e) { /* ignore */ } }
+    }
     if (onClose) onClose();
     if (prevFocus && prevFocus.focus) { try { prevFocus.focus({ preventScroll: true }); } catch (e) { /* ignore */ } }
   };
@@ -129,7 +164,9 @@ export function modal({ title, body, actions = [], onClose }) {
     if (e.key === 'Escape') { e.preventDefault(); close(); return; }
     if (e.key === 'Tab') {
       const f = box.querySelectorAll('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])');
-      if (!f.length) return;
+      // A dialog with no focusable content (e.g. the import-progress modal)
+      // used to let focus escape into the page behind it mid-import.
+      if (!f.length) { e.preventDefault(); box.focus({ preventScroll: true }); return; }
       const first = f[0], last = f[f.length - 1];
       if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
       else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
@@ -147,9 +184,11 @@ export function modal({ title, body, actions = [], onClose }) {
   return { close, box };
 }
 
-export function confirmModal(text, onYes, yesLabel) {
+// title defaults to a real heading so destructive dialogs (delete equipment,
+// delete manual, erase ALL data) are not announced as an unnamed dialog.
+export function confirmModal(text, onYes, yesLabel, title) {
   modal({
-    title: null, body: text,
+    title: title || t('common.confirm'), body: text,
     actions: [
       { label: t('common.cancel'), kind: 'btn-secondary' },
       { label: yesLabel || t('common.ok'), kind: 'btn-danger', onClick: onYes },
@@ -158,11 +197,11 @@ export function confirmModal(text, onYes, yesLabel) {
 }
 
 // Promise-based confirm: resolves true/false.
-export function confirmAsync(text, yesLabel) {
+export function confirmAsync(text, yesLabel, title) {
   return new Promise((resolve) => {
     let decided = false;
     modal({
-      title: null, body: text,
+      title: title || t('common.confirm'), body: text,
       actions: [
         { label: t('common.cancel'), kind: 'btn-secondary', onClick: () => { decided = true; resolve(false); } },
         { label: yesLabel || t('common.ok'), kind: 'btn-primary', onClick: () => { decided = true; resolve(true); } },
@@ -191,12 +230,19 @@ export async function copyText(text) {
 }
 
 // ---------- misc ----------
+// Locale-aware: French uses "Mo/Go" and a comma decimal separator, and the FR
+// string table already said "Mo" while this function emitted "12.4 MB".
 export function fmtBytes(n) {
-  if (!n) return '0 MB';
+  const fr = getLang() === 'fr';
+  const U = fr ? { k: 'Ko', m: 'Mo', g: 'Go' } : { k: 'KB', m: 'MB', g: 'GB' };
+  const num = (v, d) => v.toLocaleString(document.documentElement.lang || getLang(), {
+    minimumFractionDigits: d, maximumFractionDigits: d,
+  });
+  if (!n) return '0 ' + U.m;
   const mb = n / (1024 * 1024);
-  if (mb < 1) return (n / 1024).toFixed(0) + ' KB';
-  if (mb < 1024) return mb.toFixed(1) + ' MB';
-  return (mb / 1024).toFixed(2) + ' GB';
+  if (mb < 1) return num(n / 1024, 0) + ' ' + U.k;
+  if (mb < 1024) return num(mb, 1) + ' ' + U.m;
+  return num(mb / 1024, 2) + ' ' + U.g;
 }
 
 export function debounce(fn, ms) {

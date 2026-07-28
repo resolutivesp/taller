@@ -8,7 +8,7 @@ import { counts, attention, partsList, statusName, typeName, STATUS_META, pmStat
 import { equipmentForm } from './equipment.js';
 import { openLogEntry } from './logbook.js';
 import { importDemo } from './library.js';
-import { needsBackup, backupReminderCard } from './backup.js';
+import { needsBackup, backupReminder } from './backup.js';
 import { openScanner } from './scan.js';
 import { navigate } from './main.js';
 
@@ -40,6 +40,27 @@ export async function renderHome(container) {
     return;
   }
 
+  // Manuals imported but no machines registered yet: this used to render four
+  // zero tiles, a Quick-actions grid and NOTHING ELSE — no explanation, no call
+  // to action — because the welcome screen required BOTH lists to be empty and
+  // the "all good" card required equipment.length. It is the exact state the
+  // onboarding "add my first manual" path leaves you in.
+  if (!equipment.length) {
+    wrap.append(
+      el('div', { class: 'home-hero' },
+        el('h2', {}, t('home.noEquipmentTitle')),
+        el('p', { class: 'muted' }, t('home.noEquipmentText')),
+      ),
+      el('button', { class: 'btn btn-primary btn-block btn-big', onclick: () => equipmentForm(null, () => renderHome(container)) },
+        icon('wrench', 20), t('home.addEquipment')),
+      el('button', { class: 'btn btn-secondary btn-block', style: 'margin-top:10px', onclick: () => navigate('#/library') },
+        icon('book-open', 19), t('library.title')),
+      el('button', { class: 'btn btn-secondary btn-block', style: 'margin-top:10px', onclick: () => navigate('#/ask') },
+        icon('sparkles', 19), t('ask.title')),
+    );
+    return;
+  }
+
   const c = counts(equipment);
   const att = attention(equipment);
   const parts = partsList(equipment);
@@ -60,13 +81,13 @@ export async function renderHome(container) {
   wrap.append(tiles);
 
   // backup reminder (data lives only on this phone)
-  if (await needsBackup()) wrap.append(backupReminderCard(() => navigate('#/backup')));
+  if (await needsBackup()) wrap.append(backupReminder(() => navigate('#/backup')));
 
   // parts banner
   if (parts.length) {
     wrap.append(el('button', { class: 'parts-banner', onclick: () => navigate('#/reports') },
       icon('package', 20),
-      el('span', {}, t('home.partsNeeded', { n: parts.length })),
+      el('span', {}, tn('home.partsNeeded', parts.length, { n: parts.length })),
       icon('chevron-right', 18),
     ));
   }
@@ -122,15 +143,16 @@ function attentionCard(eq, pm) {
   const reasons = [];
   if (eq.status === 'down') reasons.push({ cls: 'st-part', txt: statusName('down') });
   if (eq.status === 'awaiting_parts') reasons.push({ cls: 'st-pending', txt: statusName('awaiting_parts') });
-  if (pm.state === 'overdue') reasons.push({ cls: 'st-part', txt: tn('pm.overdueBy', -pm.days) });
+  if (pm.state === 'overdue') reasons.push({ cls: 'st-part', txt: tn('pm.overdueBy', -pm.days, { n: -pm.days }) });
   else if (pm.state === 'due') reasons.push({ cls: 'st-pending', txt: t('pm.dueToday') });
-  else if (pm.state === 'soon') reasons.push({ cls: 'st-pending', txt: tn('pm.dueIn', pm.days) });
+  else if (pm.state === 'unknown') reasons.push({ cls: 'st-pending', txt: t('pm.unknown') });
+  else if (pm.state === 'soon') reasons.push({ cls: 'st-pending', txt: tn('pm.dueIn', pm.days, { n: pm.days }) });
 
   // dot reflects the most urgent reason, not the raw status
   let dot = { icon: 'circle-alert', cls: 'st-pending' };
   if (eq.status === 'down' || pm.state === 'overdue') dot = { icon: 'circle-alert', cls: 'st-part' };
   else if (eq.status === 'awaiting_parts') dot = { icon: 'clock', cls: 'st-pending' };
-  else if (pm.state === 'due' || pm.state === 'soon') dot = { icon: 'clock', cls: 'st-pending' };
+  else if (pm.state === 'due' || pm.state === 'unknown' || pm.state === 'soon') dot = { icon: 'clock', cls: 'st-pending' };
 
   return el('button', { class: 'att-card', onclick: () => navigate('#/equipment/' + eq.id) },
     el('div', { class: 'att-dot ' + dot.cls }, icon(dot.icon, 16)),

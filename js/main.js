@@ -221,6 +221,19 @@ async function maybeOnboard() {
     el('div', {}, el('b', {}, t(tKey)), el('p', {}, t(sKey))),
   );
 
+  // ORDER MATTERS. Measured on a 360x640 phone, the old layout put ~950px of
+  // hero + three marketing bullets + the language row ABOVE the first button,
+  // so a technician opening the link from WhatsApp saw a logo, a headline and
+  // no action at all — the very first moment of the product, and it required
+  // blind scrolling. Language row and CTAs now come first, the CTA block is
+  // sticky, and the explanatory points sit below where they belong.
+  //
+  // "Try the demo" is now the PRIMARY action. More than half of technicians in
+  // these hospitals have no service manual PDF at all, so making "Add my first
+  // manual" the primary CTA pointed the majority straight at an OS file picker
+  // and a dead end. The demo shows the whole product working in 3 seconds.
+  const finish = async (fn) => { await db.kvSet('onboarded', 1); overlay.remove(); fn(); };
+
   overlay.append(
     el('div', { class: 'onboard-box' },
       el('div', { class: 'onboard-hero' },
@@ -229,31 +242,25 @@ async function maybeOnboard() {
         el('p', { class: 'tagline' }, t('tagline')),
       ),
       el('div', { class: 'onboard-body' },
+        el('p', { class: 'lbl center' }, t('onboarding.chooseLang')),
+        langRow,
+        el('div', { class: 'onboard-cta' },
+          el('button', {
+            class: 'btn btn-primary btn-block btn-big',
+            onclick: () => finish(() => importDemo()),
+          }, icon('rocket', 20), t('onboarding.tryDemo')),
+          el('button', {
+            class: 'btn btn-secondary btn-block', style: 'margin-top:9px',
+            onclick: () => finish(() => navigate('#/library')),
+          }, icon('plus', 19), t('onboarding.start')),
+        ),
+        el('div', { class: 'onboard-scroll-cue' }, icon('chevron-down', 15), t('onboarding.more')),
         point('book-open', 'onboarding.p1t', 'onboarding.p1s'),
         point('file-search', 'onboarding.p2t', 'onboarding.p2s'),
         point('heart-handshake', 'onboarding.p3t', 'onboarding.p3s'),
-        el('p', { class: 'lbl center' }, t('onboarding.chooseLang')),
-        langRow,
         el('button', {
-          class: 'btn btn-primary btn-block btn-big', onclick: async () => {
-            await db.kvSet('onboarded', 1);
-            overlay.remove();
-            navigate('#/library');
-          },
-        }, icon('plus', 20), t('onboarding.start')),
-        el('button', {
-          class: 'btn btn-secondary btn-block', onclick: async () => {
-            await db.kvSet('onboarded', 1);
-            overlay.remove();
-            importDemo();
-          },
-        }, icon('rocket', 19), t('onboarding.tryDemo')),
-        el('button', {
-          class: 'btn btn-ghost-link', onclick: async () => {
-            await db.kvSet('onboarded', 1);
-            overlay.remove();
-            navigate('#/backup');
-          },
+          class: 'btn btn-ghost-link',
+          onclick: () => finish(() => navigate('#/backup')),
         }, icon('hard-drive', 16), t('onboarding.restore')),
       ),
     ),
@@ -337,6 +344,14 @@ function applyLangDom() {
     if (tab) b.querySelector('.tab-label').textContent = t(tab.labelKey);
   });
   document.title = 'Taller — ' + t('tagline');
+  // These two were set once at boot, so switching language left the app bar in
+  // the old one.
+  const scanBtn = document.querySelector('#appbar .bar-btn[data-role="scan"]');
+  if (scanBtn) scanBtn.setAttribute('aria-label', t('scan.title'));
+  if (installBtn) {
+    const lbl = installBtn.querySelector('.bar-btn-label');
+    if (lbl) lbl.textContent = t('library.installApp');
+  }
   renderSidebrand();
 }
 
@@ -352,10 +367,47 @@ function detectWebview() {
   if ((isWv || fromWhatsApp) && !matchMedia('(display-mode: standalone)').matches) {
     const bar = el('div', { class: 'chrome-banner small' },
       t('more.openInChrome'),
-      el('button', { class: 'icon-btn', style: 'min-width:34px;min-height:34px', onclick: () => bar.remove() }, icon('x', 16)),
+      el('button', { class: 'icon-btn', 'aria-label': t('common.dismiss'), onclick: () => bar.remove() }, icon('x', 16)),
     );
     document.getElementById('app').prepend(bar);
   }
+}
+
+// ---------- offline readiness ----------
+// "Works fully offline after the first load" is the product promise AND one of
+// the four kill-criteria questions. It used to be unverifiable: every precache
+// failure was silent. Ask the worker what it actually has.
+export function offlineStatus({ repair = false, timeout = 4000 } = {}) {
+  return new Promise((resolve) => {
+    const sw = navigator.serviceWorker;
+    if (!sw || !sw.controller) { resolve(null); return; }
+    let done = false;
+    const ch = new MessageChannel();
+    const finish = (v) => { if (!done) { done = true; resolve(v); } };
+    ch.port1.onmessage = (e) => finish(e.data);
+    setTimeout(() => finish(null), timeout);
+    try { sw.controller.postMessage({ type: 'OFFLINE_STATUS', repair }, [ch.port2]); }
+    catch (e) { finish(null); }
+  });
+}
+
+async function announceOfflineReady() {
+  const st = await offlineStatus({ repair: true, timeout: 8000 });
+  // Never cover the onboarding CTAs with this. The overlay is full-screen and
+  // has no tab bar, so a toast anchored 88px from the bottom lands squarely on
+  // the primary button during the first five seconds — the single moment the
+  // product has to prove itself. Wait until the user is through onboarding.
+  for (let i = 0; i < 120 && document.querySelector('.onboard'); i++) {
+    await new Promise(r => setTimeout(r, 1000));
+  }
+  if (document.querySelector('.onboard')) return; // still onboarding after 2 min: drop it
+  // A null status means the probe timed out or there was no controller — we
+  // do NOT know whether the app is offline-ready, and asserting that it is
+  // defeats the entire point of asking. Say nothing rather than something false.
+  if (!st) return;
+  if (st.ready) toast(t('more.offlineReady'), 4500);
+  else if (st.shellReady) toast(t('more.offlinePartial'), 7000);
+  else toast(t('more.offlineFailed'), 7000);
 }
 
 // ---------- boot ----------
@@ -365,13 +417,16 @@ async function boot() {
 
   // app bar: scan (one tap from anywhere during rounds) + install
   const appbar = document.getElementById('appbar');
-  appbar.append(el('button', { class: 'bar-btn', 'aria-label': t('scan.title'), onclick: () => openScanner() }, icon('qr-code', 16)));
+  appbar.append(el('button', {
+    class: 'bar-btn', 'aria-label': t('scan.title'), dataset: { role: 'scan' },
+    onclick: () => openScanner(),
+  }, icon('qr-code', 16)));
   installBtn = el('button', { class: 'bar-btn', style: 'display:none', onclick: async () => {
     if (!deferredInstall) return;
     deferredInstall.prompt();
     const { outcome } = await deferredInstall.userChoice;
     if (outcome === 'accepted') { deferredInstall = null; syncInstallBtn(); }
-  } }, icon('download', 15), t('library.installApp'));
+  } }, icon('download', 15), el('span', { class: 'bar-btn-label' }, t('library.installApp')));
   appbar.append(installBtn);
 
   // tab bar
@@ -412,19 +467,33 @@ async function boot() {
   if ('serviceWorker' in navigator) {
     try {
       const reg = await navigator.serviceWorker.register('./sw.js');
+      // Capture control state at boot. On a FIRST visit the page starts
+      // uncontrolled, so when the worker finally activates and calls
+      // clients.claim() the old unconditional reload fired — wiping a
+      // half-typed equipment form, an open scanner, or an OCR run, and able to
+      // land mid-import between putPages() and putManual(). Only reload when a
+      // NEW worker replaces one that was already in charge.
+      const hadController = !!navigator.serviceWorker.controller;
       let reloading = false;
       navigator.serviceWorker.addEventListener('controllerchange', () => {
+        if (!hadController) return;   // first install: nothing to swap out
         if (reloading) return; reloading = true; location.reload();
       });
       const promptUpdate = (worker) => {
         toast(t('more.updateReady'), 8000, { label: t('more.reload'), onClick: () => worker.postMessage('SKIP_WAITING') });
       };
-      if (!navigator.serviceWorker.controller) {
-        // first install → offline-ready notice once it activates
+      if (!hadController) {
+        // First install. The old check ANDed on !controller after activation,
+        // which is never true (activate awaits clients.claim), so the
+        // "ready to work offline" confirmation could never appear at all.
         reg.addEventListener('updatefound', () => {
           const nw = reg.installing;
-          if (nw) nw.addEventListener('statechange', () => {
-            if (nw.state === 'activated' && !navigator.serviceWorker.controller) toast(t('more.offlineReady'), 4000);
+          if (!nw) return;
+          nw.addEventListener('statechange', () => {
+            if (nw.state === 'activated') announceOfflineReady();
+            // A failed precache leaves the worker redundant. Silence here used
+            // to mean the technician had no idea the app was NOT offline-ready.
+            if (nw.state === 'redundant') toast(t('more.offlineFailed'), 6000);
           });
         });
       } else if (reg.waiting) {

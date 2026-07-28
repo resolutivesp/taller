@@ -5,6 +5,15 @@ const DB_NAME = 'taller-db';
 const DB_VERSION = 2;
 let _db = null;
 
+// Is this failure "the phone is full"? Storage exhaustion is the single most
+// likely write failure on a 2 GB device with a 300-page manual, and it must be
+// reported to the technician rather than swallowed.
+export function isQuotaError(e) {
+  if (!e) return false;
+  const n = e.name || (e.target && e.target.error && e.target.error.name) || '';
+  return n === 'QuotaExceededError' || n === 'NS_ERROR_DOM_QUOTA_REACHED';
+}
+
 function openDb() {
   if (_db) return Promise.resolve(_db);
   return new Promise((resolve, reject) => {
@@ -30,8 +39,16 @@ function openDb() {
         if (!logStore.indexNames.contains('byEquipment')) logStore.createIndex('byEquipment', 'equipmentId', { unique: false });
       } catch (e) { /* ignore */ }
     };
-    req.onsuccess = () => { _db = req.result; resolve(_db); };
+    req.onsuccess = () => {
+      _db = req.result;
+      // If another tab wipes or upgrades the database, close our handle so its
+      // delete/upgrade can complete instead of hanging on us for ever.
+      _db.onversionchange = () => { try { _db.close(); } catch (e) { /* ignore */ } _db = null; };
+      _db.onclose = () => { _db = null; };
+      resolve(_db);
+    };
     req.onerror = () => reject(req.error);
+    req.onblocked = () => reject(new Error('db-blocked'));
   });
 }
 
@@ -83,6 +100,7 @@ export const db = {
       };
       t.oncomplete = resolve;
       t.onerror = () => reject(t.error);
+      t.onabort = () => reject(t.error || new Error('tx aborted'));
     });
   },
 
@@ -103,6 +121,9 @@ export const db = {
       for (const r of records) s.put(r);
       t.oncomplete = resolve;
       t.onerror = () => reject(t.error);
+      // Without onabort, a quota abort that does not bubble a request error
+      // leaves this promise for ever pending and the import modal spinning.
+      t.onabort = () => reject(t.error || new Error('tx aborted'));
     });
   },
   async getPage(manualId, page) {
@@ -124,13 +145,30 @@ export const db = {
     const d = await openDb();
     return reqProm(d.transaction('equipment').objectStore('equipment').get(id));
   },
-  putEquipment(e) { return tx('equipment', 'readwrite', s => s.put(e)); },
+  // Stamp every local write so a restore can tell which copy of a record is
+  // newer. Without this, restoring an older backup silently reverts a machine's
+  // status, parts list, PM date and photo with no way to detect it.
+  putEquipment(e) {
+    e.updatedAt = new Date().toISOString();
+    return tx('equipment', 'readwrite', s => s.put(e));
+  },
+  // Verbatim write, preserving updatedAt — used by restore only.
+  putEquipmentRaw(e) { return tx('equipment', 'readwrite', s => s.put(e)); },
   async deleteEquipment(id) {
     const eq = await this.getEquipment(id);
     if (eq && eq.photoId) await this.deletePhoto(eq.photoId);
-    // detach logs from this equipment (keep the history entries themselves)
+    // Detach logs from this equipment but KEEP the machine's name on them.
+    // Logs written against a registered machine store equipment:'' (the name
+    // lived on the equipment record), so simply nulling equipmentId used to
+    // turn years of service history into anonymous "No equipment" rows —
+    // irreversibly, and exactly when a tech retires and deletes an old asset.
+    const label = eq ? (eq.name || [eq.manufacturer, eq.model].filter(Boolean).join(' ')) : '';
     const logs = await this.logsForEquipment(id);
-    for (const l of logs) { l.equipmentId = null; await this.putLog(l); }
+    for (const l of logs) {
+      l.equipmentId = null;
+      if (!l.equipment && label) l.equipment = label;
+      await this.putLog(l);
+    }
     return tx('equipment', 'readwrite', s => s.delete(id));
   },
 
@@ -150,7 +188,19 @@ export const db = {
     const all = await reqProm(d.transaction('logs').objectStore('logs').getAll());
     return all.sort((a, b) => (b.date || '').localeCompare(a.date || '') || (b.id || 0) - (a.id || 0));
   },
+  // Use the byEquipment index instead of loading and sorting EVERY log in the
+  // database to answer a per-machine question (a full scan of ~6k entries just
+  // to return ~20, on every equipment-detail open).
   async logsForEquipment(equipmentId) {
+    if (!equipmentId) return [];
+    const d = await openDb();
+    try {
+      const store = d.transaction('logs').objectStore('logs');
+      if (store.indexNames.contains('byEquipment')) {
+        const rows = await reqProm(store.index('byEquipment').getAll(IDBKeyRange.only(equipmentId)));
+        return rows.sort((a, b) => (b.date || '').localeCompare(a.date || '') || (b.id || 0) - (a.id || 0));
+      }
+    } catch (e) { /* fall through to the scan */ }
     const all = await this.listLogs();
     return all.filter(l => l.equipmentId === equipmentId);
   },

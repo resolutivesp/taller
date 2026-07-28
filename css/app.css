@@ -15,12 +15,18 @@
   --surface-2: #edf2f5;
   --ink: #0c1c2c;
   --muted: #5d6c7b;
-  --border: #e0e8ee;
+  /* --border was #e0e8ee = 1.24:1 on white. WCAG 1.4.11 needs 3:1 for anything
+     that identifies a control, and on a cheap LCD in direct sunlight a 1.2:1
+     edge simply does not exist. --border stays soft for decorative separators;
+     --border-strong (3.3:1 on white) is used for every input, select and chip. */
+  --border: #cfdae3;
+  --border-strong: #7f8f9e;
   --primary: #0e7c72;
   --primary-2: #0a5f57;
   --primary-soft: #ddefed;
   --on-primary: #ffffff;
   --accent: #e8890c;
+  --accent-ink: #a35c00;   /* 3:1+ on white — for icons/borders, not just fills */
   --accent-soft: #fdf0dc;
   --on-accent: #3a2400; /* dark ink on amber — white-on-amber failed WCAG contrast */
   --danger: #be1f26;
@@ -36,6 +42,14 @@
   --r-md: 14px;
   --r-sm: 11px;
   --tap: rgba(14, 124, 114, .08);
+  /* Brand gradient behind FIXED white text (app bar, onboarding hero, beta
+     card). Kept separate from --primary so the dark theme can brighten
+     --primary for text-on-surface without dropping white-on-brand to 2.6:1. */
+  --brand-a: #0e7c72;
+  --brand-b: #0a5f57;
+  --on-brand: #ffffff;
+  --toast-bg: #0c1c2c;
+  --toast-ink: #f4f7f9;
 }
 [data-theme="dark"] {
   --bg: #0a1120;
@@ -44,13 +58,23 @@
   --surface-2: #0d1728;
   --ink: #e9eff5;
   --muted: #90a2b6;
-  --border: #20304a;
+  --border: #2b3f5e;
+  --border-strong: #5d7189;   /* 3.5:1 on --surface */
   --primary: #16b3a5;
-  --primary-2: #0e8a7e;
+  --primary-2: #12a094;   /* was #0e8a7e — the gradient's far end fell to 4.00:1 under the button label */
   --primary-soft: #10312f;
   --on-primary: #03211d;
   --accent: #f5a623;
+  --accent-ink: #f5a623;
   --accent-soft: #33230a;
+  /* Dark theme brightened --primary to #16b3a5 for text-on-surface, which
+     dropped the FIXED white text on the app bar / hero / beta card to 2.62:1.
+     The brand gradient therefore stays dark here (7.5:1 with white). */
+  --brand-a: #0e5f58;
+  --brand-b: #0a4a45;
+  --on-brand: #ffffff;
+  --toast-bg: #e9eff5;
+  --toast-ink: #0a1120;
   --on-accent: #241600;
   --danger: #ff6b6b;
   --danger-soft: #3a1515;
@@ -111,8 +135,8 @@ h1, h2, h3 { line-height: 1.22; font-weight: 800; letter-spacing: -0.015em; }
 #appbar {
   display: flex; align-items: center; gap: 10px;
   padding: calc(12px + env(safe-area-inset-top, 0)) 16px 12px;
-  background: linear-gradient(120deg, var(--primary) 0%, var(--primary-2) 100%);
-  color: #fff;
+  background: linear-gradient(120deg, var(--brand-a) 0%, var(--brand-b) 100%);
+  color: var(--on-brand);
   flex: 0 0 auto;
 }
 #appbar .brandmark { display: flex; width: 30px; height: 30px; border-radius: 9px; overflow: hidden; box-shadow: 0 2px 6px rgba(0,0,0,.25); }
@@ -150,7 +174,7 @@ body.reader-mode #appbar { display: none; }
 .tab {
   flex: 1; display: flex; flex-direction: column; align-items: center; gap: 3px;
   padding: 6px 2px 4px; border: 0; background: none; color: var(--muted);
-  font: inherit; font-size: 11px; font-weight: 700; cursor: pointer;
+  font: inherit; font-size: 11.5px; font-weight: 700; cursor: pointer;
   border-radius: var(--r-md);
   transition: color .15s;
 }
@@ -184,11 +208,11 @@ body.reader-mode #tabs { display: none; }
   color: var(--on-accent);
   box-shadow: 0 4px 14px color-mix(in srgb, var(--accent) 35%, transparent);
 }
-.btn-secondary { background: var(--surface); border: 1.5px solid var(--border); box-shadow: var(--shadow-1); }
+.btn-secondary { background: var(--surface); border: 1.5px solid var(--border-strong); box-shadow: var(--shadow-1); }
 .btn-danger { background: transparent; color: var(--danger); border: 1.5px solid var(--danger); }
 .btn-block { display: flex; width: 100%; }
 .btn-big { font-size: 16.5px; min-height: 56px; border-radius: var(--r-lg); }
-.btn-small { min-height: 40px; padding: 8px 14px; font-size: 13.5px; border-radius: var(--r-sm); }
+.btn-small { min-height: 44px; padding: 9px 14px; font-size: 13.5px; border-radius: var(--r-sm); }
 .btn[disabled] { opacity: .55; pointer-events: none; }
 .btn:focus-visible, .chip:focus-visible, .icon-btn:focus-visible {
   outline: 3px solid color-mix(in srgb, var(--primary) 45%, transparent); outline-offset: 1px;
@@ -204,7 +228,7 @@ body.reader-mode #tabs { display: none; }
 
 .input, .select, .search-box, .ask-input {
   width: 100%; font: inherit; font-weight: 500; color: var(--ink);
-  background: var(--surface); border: 1.5px solid var(--border);
+  background: var(--surface); border: 1.5px solid var(--border-strong);
   border-radius: var(--r-md); padding: 13px 15px; min-height: 50px;
   transition: border-color .15s, box-shadow .15s;
 }
@@ -257,8 +281,8 @@ textarea.input, .ask-input { resize: vertical; }
 
 .badge {
   display: inline-flex; align-items: center; gap: 5px;
-  font-size: 11.5px; font-weight: 800;
-  padding: 4px 10px; border-radius: 99px; margin-top: 4px;
+  font-size: 12.5px; font-weight: 800;
+  padding: 5px 10px; border-radius: 99px; margin-top: 4px;
 }
 .badge-page { background: var(--primary); color: var(--on-primary); box-shadow: 0 2px 6px color-mix(in srgb, var(--primary) 40%, transparent); }
 .badge-warn { background: var(--warn-soft); color: var(--warn-ink); }
@@ -298,7 +322,7 @@ textarea.input, .ask-input { resize: vertical; }
   border: 1.5px dashed color-mix(in srgb, var(--primary) 45%, transparent);
   background: var(--primary-soft); color: var(--primary);
   font: inherit; font-size: 13.5px; font-weight: 700;
-  padding: 8px 13px; border-radius: 99px; cursor: pointer;
+  padding: 10px 15px; min-height: 44px; border-radius: 99px; cursor: pointer;
   transition: transform .1s, background .15s;
 }
 .suggest-chip:active { transform: scale(.95); }
@@ -365,8 +389,8 @@ textarea.input, .ask-input { resize: vertical; }
 .tool-btn:active { background: var(--tap); transform: scale(.92); }
 .tool-sep { width: 1px; height: 26px; background: var(--border); margin: 0 5px; }
 .page-input {
-  width: 62px; text-align: center; font: inherit; font-weight: 700; font-variant-numeric: tabular-nums;
-  border: 1.5px solid var(--border); border-radius: var(--r-sm); padding: 9px 4px;
+  width: 62px; min-height: 44px; text-align: center; font: inherit; font-weight: 700; font-variant-numeric: tabular-nums;
+  border: 1.5px solid var(--border-strong); border-radius: var(--r-sm); padding: 9px 4px;
   background: var(--surface); color: inherit;
 }
 .ctx-chip {
@@ -426,7 +450,7 @@ body.reader-mode #view { display: flex; flex-direction: column; overflow: hidden
 .chip-row.center { justify-content: center; }
 .chip {
   display: inline-flex; align-items: center; gap: 6px;
-  border: 1.5px solid var(--border); background: var(--surface); color: var(--ink);
+  border: 1.5px solid var(--border-strong); background: var(--surface); color: var(--ink);
   font: inherit; font-size: 14px; font-weight: 700;
   padding: 11px 16px; border-radius: 99px; cursor: pointer; min-height: 46px;
   transition: all .15s;
@@ -462,8 +486,23 @@ body.reader-mode #view { display: flex; flex-direction: column; overflow: hidden
 @keyframes slideup { from { transform: translateY(40px); opacity: .4; } to { transform: none; opacity: 1; } }
 @media (min-width: 560px) { .modal { border-radius: 22px; } }
 .modal h2 { margin: 0 0 10px; font-size: 19px; }
-.modal-actions { display: flex; gap: 10px; margin-top: 18px; }
-.modal-actions .btn { flex: 1; }
+.modal-actions {
+  display: flex; gap: 10px; margin-top: 18px;
+  position: sticky; bottom: calc(-1 * (18px + env(safe-area-inset-bottom, 0)));
+  background: var(--surface); padding: 12px 0 calc(6px + env(safe-area-inset-bottom, 0));
+  box-shadow: 0 -10px 18px -12px rgba(4, 34, 46, .35);
+  z-index: 2;
+}
+.modal-actions .btn { flex: 1 1 0; font-size: 14.5px; padding: 12px 10px; }
+/* With THREE actions on a 360px screen the middle label ("Save & add another")
+   wrapped to three lines and the row became a wall. Give the primary action a
+   row of its own — but only when there are three, otherwise ordinary two-button
+   confirms would restack too and the app would have two confirm layouts. */
+.modal-actions { flex-wrap: wrap; }
+.modal-actions:has(.btn:nth-child(3)) .btn-primary { flex: 1 1 100%; }
+@supports not selector(:has(*)) {
+  .modal-actions .btn { font-size: 13.5px; padding: 12px 6px; }
+}
 
 /* progress */
 .progress {
@@ -484,8 +523,8 @@ body.reader-mode #view { display: flex; flex-direction: column; overflow: hidden
 #toast {
   position: fixed; left: 50%; bottom: 88px; transform: translateX(-50%) translateY(16px);
   display: flex; align-items: center; gap: 9px;
-  background: color-mix(in srgb, var(--ink) 94%, transparent);
-  color: var(--bg);
+  background: var(--toast-bg);
+  color: var(--toast-ink);
   padding: 12px 19px; border-radius: 99px; font-size: 14.5px; font-weight: 700;
   opacity: 0; pointer-events: none; transition: all .28s cubic-bezier(.2, .8, .3, 1); z-index: 80;
   max-width: min(92vw, 480px); text-align: center;
@@ -502,8 +541,8 @@ body.reader-mode #view { display: flex; flex-direction: column; overflow: hidden
 @media (min-width: 1024px) { .onboard { position: absolute; } #app { position: relative; } }
 .onboard-hero {
   position: relative; overflow: hidden;
-  background: linear-gradient(150deg, var(--primary) 0%, #084a44 100%);
-  color: #fff; text-align: center;
+  background: linear-gradient(150deg, var(--brand-a) 0%, #063b36 100%);
+  color: var(--on-brand); text-align: center;
   padding: 44px 24px 34px;
   border-radius: 0 0 34px 34px;
 }
@@ -852,13 +891,13 @@ button.stat-tile:active { transform: scale(.98); }
 
 /* toast action button (Undo / Reload) — light on the dark toast */
 .toast-action {
-  margin-left: 12px; background: rgba(255,255,255,.14); border: 0; color: #eafff9;
-  font: inherit; font-weight: 800; cursor: pointer; padding: 6px 12px; border-radius: 99px;
-  min-height: 34px;
+  margin-left: 12px; background: rgba(255,255,255,.18); border: 0; color: var(--toast-ink);
+  font: inherit; font-weight: 800; cursor: pointer; padding: 8px 14px; border-radius: 99px;
+  min-height: 44px;
 }
 
 /* editable part quantity + add row */
-.part-qty-input { width: 58px; flex: 0 0 auto; text-align: center; padding: 8px 4px; min-height: 42px; }
+.part-qty-input { width: 58px; flex: 0 0 auto; text-align: center; padding: 8px 4px; min-height: 44px; }
 .machine-block { margin: 6px 0 2px; }
 .machine-block .check-row { margin: 8px 0; }
 .machine-block b { color: var(--primary); }
@@ -872,7 +911,7 @@ button.stat-tile:active { transform: scale(.98); }
 .btn-ghost-link:active { color: var(--primary); background: var(--tap); }
 
 /* app-bar icon-only button (scan) sizing */
-#appbar .bar-btn { min-height: 40px; }
+#appbar .bar-btn { min-height: 44px; min-width: 44px; justify-content: center; }
 
 /* ============================================================
    v0.5.1 — "Find a manual" source links (close the no-manual gap)
@@ -881,7 +920,7 @@ button.stat-tile:active { transform: scale(.98); }
 .source-row {
   display: flex; align-items: center; gap: 12px; text-decoration: none;
   background: var(--surface); color: inherit;
-  border: 1px solid color-mix(in srgb, var(--muted) 26%, transparent);
+  border: 1.5px solid var(--border-strong);
   border-radius: var(--r-md); padding: 12px 14px; min-height: 56px;
 }
 .source-row:active { background: var(--tap); }
@@ -893,3 +932,83 @@ button.stat-tile:active { transform: scale(.98); }
   color: var(--warn-ink); background: var(--accent-soft);
   border-radius: 10px; padding: 8px 12px; font-weight: 700;
 }
+
+
+/* ============================================================
+   v0.6 — audit fixes: honest AI states, PM "never recorded",
+   restore confirmation, offline readiness, standalone ghost button
+   ============================================================ */
+
+/* .btn-ghost was only ever defined as `.beta-card .btn-ghost`, so the one
+   button that answers the documented no-manual problem rendered as an
+   unstyled slab. Give it a real standalone definition. */
+.btn-ghost {
+  background: var(--surface); color: var(--primary);
+  border: 1.5px dashed var(--border-strong); box-shadow: none;
+}
+.btn-ghost:active { background: var(--tap); }
+.beta-card .btn-ghost { background: rgba(255,255,255,.16); color: #fff; border-color: rgba(255,255,255,.4); }
+
+/* A refusal or a low-confidence retrieval must LOOK different from an answer. */
+.warn-card { border-left: 4px solid var(--accent); }
+.answer-refused { border-left: 4px solid var(--accent); background: var(--accent-soft); }
+.answer-warn {
+  display: flex; align-items: flex-start; gap: 7px;
+  margin: 10px 0 0; padding: 9px 11px; border-radius: 10px;
+  background: var(--warn-soft); color: var(--warn-ink);
+  font-size: 13.5px; font-weight: 700;
+}
+.answer-warn svg { flex: 0 0 auto; margin-top: 1px; }
+
+/* Absolute (not best-hit-normalised) relevance, colour-coded and labelled. */
+.rel-fill.rel-weak { background: linear-gradient(90deg, var(--accent-ink), var(--accent)); }
+.rel-fill.rel-fair { background: linear-gradient(90deg, var(--accent), #e5b93c); }
+.rel-fill.rel-good { background: linear-gradient(90deg, var(--primary), #35b3a8); }
+
+/* PM that has never been recorded is not the same as "due today".
+   Scoped like every other pm-* state: unscoped, it painted the card AND the
+   pill the same colour, hiding the pill inside its own card. */
+.pm-card.pm-unknown { border-left-color: var(--muted); }
+.pm-state.pm-unknown, .badge.pm-unknown { background: var(--surface-2); color: var(--muted); }
+
+/* Restore confirmation summary. */
+.restore-summary { margin: 6px 0 0; padding-left: 20px; font-size: 14.5px; }
+.restore-summary li { margin: 3px 0; }
+
+/* Backup reminder: the dismiss control is now a real sibling button with a
+   44px target, not a <span onclick> nested inside another button. */
+.backup-reminder-wrap { display: flex; align-items: stretch; gap: 6px; margin: 4px 0 10px; }
+.backup-reminder-wrap .backup-reminder { margin: 0; }
+.backup-reminder-wrap .br-x {
+  flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center;
+  min-width: 44px; min-height: 44px; align-self: center;
+  border: 0; background: none; color: var(--warn-ink); cursor: pointer; border-radius: var(--r-sm);
+}
+.backup-reminder-wrap .br-x:active { background: var(--tap); }
+
+/* Offline readiness pill — the app can finally answer "is it safe to lose
+   signal?" instead of leaving every precache failure invisible. */
+.offline-pill {
+  display: inline-flex; align-items: center; gap: 7px;
+  font-size: 13px; font-weight: 700; padding: 8px 13px; border-radius: 99px;
+  border: 1.5px solid var(--border-strong); background: var(--surface); color: var(--muted);
+  min-height: 44px; cursor: pointer;
+}
+.offline-pill.ready { background: var(--ok-soft); color: var(--ok); border-color: color-mix(in srgb, var(--ok) 45%, transparent); }
+.offline-pill.partial { background: var(--warn-soft); color: var(--warn-ink); border-color: color-mix(in srgb, var(--accent) 45%, transparent); }
+
+/* Onboarding: make it obvious there is more below the fold on a 360x640 phone. */
+.onboard-cta { position: sticky; bottom: 0; background: var(--bg); padding: 10px 0 14px; }
+.onboard-scroll-cue {
+  display: flex; align-items: center; justify-content: center; gap: 6px;
+  color: var(--muted); font-size: 13px; font-weight: 700; padding: 2px 0 6px;
+}
+
+/* Express add-equipment: only the fields that matter in under a minute. */
+.form-more {
+  width: 100%; display: flex; align-items: center; justify-content: center; gap: 8px;
+  background: none; border: 0; border-top: 1.5px solid var(--border);
+  color: var(--primary); font: inherit; font-weight: 800; cursor: pointer;
+  padding: 14px 0 4px; margin-top: 14px; min-height: 44px;
+}
+.form-more:active { background: var(--tap); }

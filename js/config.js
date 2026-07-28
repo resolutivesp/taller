@@ -1,6 +1,6 @@
 // Taller — configuration. Edit these values before/after deploying.
 export const CONFIG = {
-  version: '0.5.1-beta',
+  version: '0.6-beta',
 
   // Where in-app feedback is sent (mailto). Change to your address.
   feedbackEmail: 'resolutivesp@gmail.com',
@@ -97,5 +97,16 @@ export const DEMO_SUGGESTIONS = {
   fr: {
     search: ['pas d’aspiration', 'erreur E4', 'fusible', 'maintenance préventive'],
     ask: ['L’aspirateur affiche E4 puis s’arrête', 'Pas d’aspiration mais le moteur tourne', 'Fonctionne sur secteur mais pas sur batterie'],
+  },
+  es: {
+    search: ['sin aspiración', 'error E4', 'fusible', 'mantenimiento preventivo'],
+    ask: ['La bomba se detiene y muestra el error E4', 'No hay aspiración pero el motor gira', 'Funciona con red eléctrica pero no con batería'],
+  },
+  // pt: "fusíveis" (plural) rather than "fusível" — Portuguese pluralises
+  // -l → -is, so the singular is neither a prefix nor a fuzzy match of the
+  // plural that the manual mostly uses, and the singular chip scored weak.
+  pt: {
+    search: ['sem aspiração', 'erro E4', 'fusíveis', 'manutenção preventiva'],
+    ask: ['O aspirador mostra E4 e desliga-se', 'Não há aspiração mas o motor trabalha', 'Funciona na rede mas não na bateria'],
   },
 };

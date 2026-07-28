@@ -100,16 +100,41 @@ export async function indexManual(manualId, pages, onProgress) {
       docs.push({ id: `${manualId}::${page}::${i}`, manualId, page, text: partText });
     });
   }
-  // add in batches to keep the UI responsive
+  // Add in batches to keep the UI responsive.
+  // MiniSearch THROWS on a duplicate id. That used to abort every OCR run on a
+  // copier-produced scan: such pages carry a short text layer ("Page 4 of 88"),
+  // which is enough for splitParts to create doc id "…::page::0" at import but
+  // NOT enough (>20 chars) for OCR to skip the page — so OCR re-added the same
+  // id, threw, and discarded 20+ minutes of work before anything was saved.
+  // Discard-then-add makes re-indexing idempotent.
   const BATCH = 200;
   for (let i = 0; i < docs.length; i += BATCH) {
-    index.addAll(docs.slice(i, i + BATCH));
+    const batch = docs.slice(i, i + BATCH);
+    for (const d of batch) {
+      try { if (index.has(d.id)) index.discard(d.id); } catch (e) { /* ignore */ }
+    }
+    index.addAll(batch);
     if (onProgress) onProgress(Math.min(i + BATCH, docs.length), docs.length);
     await new Promise(r => setTimeout(r, 0));
   }
   _dirty = true;
   await persistIndex(); // persist reliably so search survives an immediate reload
   return records;
+}
+
+// Remove index entries for specific pages of a manual, given the in-memory
+// page records. Used by the import-failure cleanup path, where the page rows
+// were never written to IndexedDB and so unindexManual() would find nothing.
+export async function unindexPages(manualId, pageRecords) {
+  const index = await ensureIndex();
+  for (const rec of pageRecords) {
+    const n = rec.parts || 1;
+    for (let i = 0; i < n; i++) {
+      const id = `${manualId}::${rec.page}::${i}`;
+      try { if (index.has(id)) index.discard(id); } catch (e) { /* ignore */ }
+    }
+  }
+  _dirty = true;
 }
 
 export async function unindexManual(manualId) {
@@ -161,7 +186,24 @@ export async function searchPages(query, { manualId = null, limit = 12 } = {}) {
     else byPage.set(key, { manualId: r.manualId, page: r.page, score: r._adj });
   }
   const hits = [...byPage.values()].sort((a, b) => b.score - a.score).slice(0, limit);
-  return { terms: [...termSet], hits };
+
+  // How much of what the technician actually ASKED was found?
+  // Raw MiniSearch score is a bad confidence signal on its own: it scales with
+  // query length and term frequency, so a five-word question about a machine
+  // whose manual is not even imported can outscore a precise two-word one.
+  // Coverage is what discriminates. Note matched terms are INDEX terms after
+  // fuzzy/prefix expansion, so "rotor" matching "motor" must NOT count as
+  // coverage — only exact or prefix relationships do.
+  const matched = [...termSet];
+  const qTerms = [...new Set(
+    String(query).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+      .split(/[^\p{L}\p{N}]+/u).filter(w => w.length > 1 && !STOP.has(w))
+  )];
+  const covered = qTerms.filter(q => matched.some(m => m === q || m.startsWith(q) || q.startsWith(m)));
+  const coverage = qTerms.length ? covered.length / qTerms.length : 0;
+  const density = hits.length ? hits[0].score / Math.max(1, qTerms.length) : 0;
+
+  return { terms: matched, hits, coverage, density, queryTerms: qTerms.length };
 }
 
 // Build a text snippet around the first matched term.
@@ -181,20 +223,56 @@ export function makeSnippet(text, terms, len = 240) {
 }
 
 // Retrieval for the assistant: top pages with their full-page excerpts.
+// `partial` marks an excerpt that is only a WINDOW of the page — the assistant
+// must know this, because a 9-step procedure trimmed to 1800 chars around the
+// first matched term silently loses steps at both ends, and a confident
+// "4-step procedure, p. 61" built from it is dangerous.
 export async function retrieveExcerpts(question, { manualId = null, maxPages = 6, maxChars = 1800 } = {}) {
-  const { terms, hits } = await searchPages(question, { manualId, limit: maxPages * 2 });
+  const { terms, hits, coverage, density, queryTerms } = await searchPages(question, { manualId, limit: maxPages * 2 });
   const out = [];
+  const manualCache = new Map(); // avoid re-fetching the same manual per hit
   for (const h of hits.slice(0, maxPages)) {
     const rec = await db.getPage(h.manualId, h.page);
     if (!rec || !rec.text) continue;
-    const manual = await db.getManual(h.manualId);
-    let text = rec.text.replace(/\s+/g, ' ').trim();
+    if (!manualCache.has(h.manualId)) manualCache.set(h.manualId, await db.getManual(h.manualId));
+    const manual = manualCache.get(h.manualId);
+    const full = rec.text.replace(/\s+/g, ' ').trim();
+    let text = full;
+    let partial = false;
     if (text.length > maxChars) {
-      // center the excerpt on the snippet region
-      const snip = makeSnippet(rec.text, terms, maxChars);
-      text = snip;
+      text = makeSnippet(rec.text, terms, maxChars);
+      partial = true;
     }
-    out.push({ manualId: h.manualId, manualName: manual ? manual.name : '?', page: h.page, text, score: h.score });
+    out.push({
+      manualId: h.manualId, manualName: manual ? manual.name : '?',
+      page: h.page, text, partial, score: h.score,
+    });
   }
-  return { terms, excerpts: out };
+  return {
+    terms, excerpts: out,
+    topScore: out.length ? out[0].score : 0,
+    coverage, density, queryTerms,
+    confidence: out.length ? confidenceOf({ coverage, density }) : 'weak',
+  };
+}
+
+// Confidence of a retrieval. Because matching is OR + fuzzy + prefix, ONE
+// loosely-matching common word is enough to return "results": asking how to
+// service a ventilator expiratory valve while only a suction-pump manual is
+// imported used to return six confident-looking, entirely off-topic pages —
+// and then hand them to the assistant as "the sole source of truth".
+//
+// Two signals, both required:
+//   coverage — fraction of the question's own words actually found (the real
+//              discriminator: unrelated questions match 1-2 generic words)
+//   density  — top score per question word (catches the case where the one
+//              covered word is simply common, e.g. "blade")
+export const RELEVANCE = { minCoverage: 0.6, minDensity: 6, goodCoverage: 0.75, goodDensity: 15 };
+export function confidenceOf(r) {
+  if (!r) return 'weak';
+  const cov = typeof r === 'number' ? 1 : (r.coverage || 0);
+  const den = typeof r === 'number' ? r : (r.density || 0);
+  if (!den || cov < RELEVANCE.minCoverage || den < RELEVANCE.minDensity) return 'weak';
+  if (cov >= RELEVANCE.goodCoverage && den >= RELEVANCE.goodDensity) return 'good';
+  return 'fair';
 }

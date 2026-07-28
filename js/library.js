@@ -1,11 +1,11 @@
 // Taller — Library view: import PDFs, list manuals, search across all manuals.
 
 import { CONFIG, DEMO_SUGGESTIONS } from './config.js';
-import { db } from './db.js';
+import { db, isQuotaError } from './db.js';
 import { el, clear, t, tn, getLang, toast, confirmModal, confirmAsync, modal, fmtBytes, debounce, highlight, uuid, shareApp } from './ui.js';
 import { icon } from './icons.js';
-import { openPdf, extractText, isScanned } from './pdfengine.js';
-import { indexManual, unindexManual, searchPages, makeSnippet } from './search.js';
+import { openPdf, extractText, isScanned, PdfEngineUnavailable } from './pdfengine.js';
+import { indexManual, unindexManual, unindexPages, persistIndex, searchPages, makeSnippet } from './search.js';
 import { startOcr } from './ocr.js';
 import { seedDemoEquipment } from './equipment.js';
 import { findManual } from './manualsources.js';
@@ -23,11 +23,25 @@ export async function importFiles(fileList, onAllDone, extra = {}) {
       const goOn = await confirmAsync(t('library.bigFileWarn', { mb: mb.toFixed(0) }));
       if (!goOn) continue;
     }
-    const id = await importOne(file, extra);
+    let id = null;
+    try {
+      id = await importOne(file, extra);
+    } catch (e) {
+      // Cancel means "stop", not "skip this one": carrying on with the rest of
+      // a multi-file selection ignores what the technician just asked for.
+      if (e instanceof ImportCancelled) break;
+      console.error('import failed', e);
+    }
     if (id) ids.push(id);
   }
   if (onAllDone) onAllDone();
   return ids;
+}
+
+// Tapping Cancel travels through the same catch as a real failure, so a
+// half-written manual is always cleaned up the same way.
+class ImportCancelled extends Error {
+  constructor() { super('import-cancelled'); this.name = 'ImportCancelled'; }
 }
 
 async function importOne(file, extra = {}) {
@@ -39,15 +53,28 @@ async function importOne(file, extra = {}) {
     status,
     el('p', { class: 'muted small' }, t('library.keepOpen')),
   );
-  const m = modal({ title: t('library.importing'), body, actions: [] });
+  // Extracting a 400-page manual runs 6-30 s on the target phone. With no
+  // action in this dialog the only way out was killing the app mid-write.
+  let cancelled = false;
+  const m = modal({
+    title: t('library.importing'), body,
+    actions: [{ label: t('common.cancel'), kind: 'btn-secondary', onClick: () => { cancelled = true; } }],
+  });
 
   const setProg = (frac, msg) => {
+    // Neither extractText nor indexManual takes an abort signal, but both call
+    // this on every step — throwing from here is what actually stops the loop.
+    if (cancelled) throw new ImportCancelled();
     barFill.style.width = Math.round(frac * 100) + '%';
     if (msg) status.textContent = msg;
   };
 
   const id = uuid();
   let doc = null;
+  // Page records held in memory: the ONLY usable input for index cleanup,
+  // because db.getPagesForManual(id) stays empty until putPages() succeeds.
+  let records = null;
+  let indexHint = null;
   try {
     doc = await openPdf(file);
     const total = doc.numPages;
@@ -56,13 +83,26 @@ async function importOne(file, extra = {}) {
       setProg(0.05 + 0.6 * (p / tot), t('library.extracting', { x: p, y: tot })));
 
     const scanned = isScanned(extract, total);
+    // Store the file BEFORE touching the search index. Quota exhaustion is by
+    // far the likeliest failure on a 2 GB phone and this blob is the biggest
+    // write of the import, so failing here costs nothing to undo.
+    setProg(0.68, t('library.saving'));
+    await db.putFile(id, file);
+
     setProg(0.7, t('library.indexing'));
-    const records = await indexManual(id, extract.pages, (done, tot) =>
+    // Upper bound on the chunk ids indexManual can create for each page. It
+    // targets ~1600-char parts and a short part is always followed by a >1500
+    // one, so parts average >750 chars; this over-counts on purpose, and
+    // discarding an id that was never added costs a map lookup. Only used if
+    // indexManual itself is interrupted, when no records come back.
+    indexHint = extract.pages.map(pg => ({
+      page: pg.page, parts: Math.ceil((pg.text || '').length / 700) + 2,
+    }));
+    records = await indexManual(id, extract.pages, (done, tot) =>
       setProg(0.7 + 0.2 * (tot ? done / tot : 1), t('library.indexing')));
 
-    setProg(0.92, t('library.indexing'));
+    setProg(0.92, t('library.saving'));
     await db.putPages(records);
-    await db.putFile(id, file);
     await db.putManual({
       id,
       name: prettyName(file.name),
@@ -83,15 +123,34 @@ async function importOne(file, extra = {}) {
         if (!e.manualId && e.manualName && e.manualName === nm) { e.manualId = id; await db.putEquipment(e); }
       }
     } catch (e) { /* ignore */ }
-    setProg(1);
+    // Past the point of no return: the manual is committed, so do NOT run the
+    // cancel check in setProg here and throw away work that is already saved.
+    barFill.style.width = '100%';
     m.close();
     toast(t('library.imported', { name: prettyName(file.name) }));
     return id;
   } catch (e) {
-    console.error('import failed', e);
     m.close();
-    try { await unindexManual(id); await db.deleteManualCascade(id); } catch (e2) { /* ignore */ }
-    toast(t('library.importFailed'), 4000);
+    // Two INDEPENDENT cleanups. They used to share one try: when the phone was
+    // full, unindexing (which writes the index back) threw as well and the
+    // manual's rows plus its multi-MB file blob were left behind for ever.
+    try {
+      // unindexManual() derives chunk ids from db.getPagesForManual(), which is
+      // empty when the import died before putPages — it removed NOTHING and the
+      // chunks stayed in the index for ever, surfacing as search hits whose
+      // page lookup returns null. The in-memory records are the real list.
+      const hint = records || indexHint;
+      if (hint) { await unindexPages(id, hint); await persistIndex(); }
+    } catch (e2) { /* ignore */ }
+    try { await db.deleteManualCascade(id); } catch (e2) { /* ignore */ }
+
+    if (e instanceof ImportCancelled) { toast(t('library.importCancelled')); throw e; }
+    console.error('import failed', e);
+    // "Your manual is damaged" is the wrong thing to say for the two failures
+    // that are not about the file at all — each needs a different action.
+    if (e instanceof PdfEngineUnavailable) toast(t('library.engineOffline'), 6000);
+    else if (isQuotaError(e)) toast(t('library.storageFull'), 6000);
+    else toast(t('library.importFailed'), 4000);
     return null;
   } finally {
     if (doc) { try { doc.destroy(); } catch (e) { /* ignore */ } }
@@ -104,18 +163,36 @@ function prettyName(fileName) {
 
 export async function importDemo() {
   const ui = getLang();
-  const manualLang = ui === 'fr' ? 'fr' : 'en'; // demo manual exists in EN + FR
-  const file = manualLang === 'fr' ? 'demo/demo-manual-fr.pdf' : 'demo/demo-manual.pdf';
-  const name = manualLang === 'fr' ? 'Démo — OpenMed SP-100 Aspirateur.pdf' : 'Demo — OpenMed SP-100 Suction Pump.pdf';
+  // The demo is the escape hatch for a technician with no manual of their own —
+  // the documented majority case. Shipping it in EN+FR only meant Lusophone
+  // Africa and Latin America met the product in a foreign language at the exact
+  // moment it was supposed to prove itself.
+  const DEMO_MANUALS = {
+    en: { file: 'demo/demo-manual.pdf',    name: 'Demo — OpenMed SP-100 Suction Pump.pdf' },
+    fr: { file: 'demo/demo-manual-fr.pdf', name: 'Démo — OpenMed SP-100 Aspirateur.pdf' },
+    es: { file: 'demo/demo-manual-es.pdf', name: 'Demo — OpenMed SP-100 Aspirador de secreciones.pdf' },
+    pt: { file: 'demo/demo-manual-pt.pdf', name: 'Demo — OpenMed SP-100 Aspirador de secreções.pdf' },
+  };
+  const manualLang = DEMO_MANUALS[ui] ? ui : 'en';
+  const { file, name } = DEMO_MANUALS[manualLang];
   try {
     const res = await fetch(file);
     if (!res.ok) throw new Error('demo fetch failed');
     const blob = await res.blob();
     const f = new File([blob], name, { type: 'application/pdf' });
     const ids = await importFiles([f], null, { demoLang: manualLang });
-    if (ids[0]) { try { await seedDemoEquipment(ids[0], ui); } catch (e) { console.warn('seed failed', e); } }
+    // Nothing imported: importOne has already explained why (engine missing,
+    // phone full, cancelled). Do not navigate away from that message onto an
+    // empty dashboard as if it had worked.
+    if (!ids.length) return;
+    try { await seedDemoEquipment(ids[0], ui); } catch (e) { console.warn('seed failed', e); }
     navigate('#/'); // land on the now-populated dashboard
   } catch (e) {
+    // The demo PDF ships with the app and is served from the cache offline, so
+    // the engine is the other thing that can be missing here. importOne reports
+    // it for the import itself; this is the same honest message for anything
+    // that fails outside it — never "your PDF is damaged".
+    if (e instanceof PdfEngineUnavailable) { toast(t('library.engineOffline'), 6000); return; }
     toast(t('library.demoOffline'), 4000);
   }
 }
@@ -182,9 +259,21 @@ async function runSearch(q, results) {
     );
     return;
   }
-  for (const h of hits) {
-    const rec = await db.getPage(h.manualId, h.page);
-    const man = await db.getManual(h.manualId);
+  // One round-trip per hit, all in flight together, and each manual fetched
+  // once: 20 hits used to mean 40 STRICTLY SERIALIZED IndexedDB transactions
+  // (page, manual, page, manual…) before the first result could be drawn.
+  const manIds = [...new Set(hits.map(h => h.manualId))];
+  const [pageRecs, manRecs] = await Promise.all([
+    Promise.all(hits.map(h => db.getPage(h.manualId, h.page))),
+    Promise.all(manIds.map(mid => db.getManual(mid))),
+  ]);
+  const mans = new Map();
+  manRecs.forEach((man, i) => mans.set(manIds[i], man));
+
+  for (let i = 0; i < hits.length; i++) {
+    const h = hits[i];
+    const rec = pageRecs[i];
+    const man = mans.get(h.manualId);
     if (!rec || !man) continue;
     const snippet = makeSnippet(rec.text, terms);
     results.append(
@@ -211,7 +300,10 @@ async function renderManualList(wrap, fileInput, container, runFromChip) {
 
   // "I don't have the manual" is the most-cited BMET pain — point them at the
   // free public libraries so an empty shelf isn't a dead end. (Clean-room: links only.)
-  wrap.append(el('button', { class: 'btn btn-ghost btn-block', onclick: () => findManual() },
+  // btn-ghost is defined ONLY inside .beta-card, so out here it rendered as an
+  // unstyled grey slab welded to the button above it — use the generic
+  // secondary style and space it off the primary action.
+  wrap.append(el('button', { class: 'btn btn-secondary btn-block', style: 'margin-top:8px', onclick: () => findManual() },
     icon('globe', 18), t('find.cta')));
 
   // guided suggestions when the demo manual is around (first-experience magic)

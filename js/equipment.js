@@ -2,12 +2,12 @@
 // WHO-style inventory fields, a status, a preventive-maintenance schedule, a
 // linked manual, a photo, a spare-parts list and a service history.
 
-import { db } from './db.js';
+import { db, isQuotaError } from './db.js';
 import { el, clear, t, tn, toast, modal, confirmModal, confirmAsync, todayISO, uuid, debounce } from './ui.js';
 import { icon } from './icons.js';
 import { EQUIPMENT_TYPES, EQUIPMENT_STATUS, PM_PRESETS, DEMO_EQUIPMENT } from './config.js';
 import {
-  typeMeta, typeName, STATUS_META, statusName, riskName, pmState,
+  typeMeta, typeName, STATUS_META, statusName, riskName, pmState, pmNeedsAction,
   fmtDate, relDays, todayDate, toISO, downDays, normalizeParts,
 } from './model.js';
 import { capturePhotoToDb, setPhoto, compress } from './images.js';
@@ -107,7 +107,7 @@ export async function renderEquipment(container, params = {}) {
   function paint() {
     clear(listEl);
     let items = equipment;
-    if (filter === 'pmdue') items = items.filter(e => { const st = pmState(e).state; return st === 'overdue' || st === 'due'; });
+    if (filter === 'pmdue') items = items.filter(e => pmNeedsAction(pmState(e).state));
     else if (filter !== 'all') items = items.filter(e => e.status === filter);
     if (q) items = items.filter(e => (`${e.name} ${typeName(e.type)} ${e.model || ''} ${e.serial || ''} ${e.location || ''} ${e.assetTag || ''}`).toLowerCase().includes(q));
     if (!items.length) { listEl.append(el('p', { class: 'muted small center', style: 'padding:20px' }, t('equipment.noneMatch'))); return; }
@@ -123,7 +123,9 @@ function equipmentCard(eq) {
   const icoBox = el('div', { class: 'eq-thumb eq-thumb-ico' }, icon('wrench', 24));
   if (eq.photoId) setPhoto(thumb, eq.photoId);
 
-  const pmChip = (pm.state === 'overdue' || pm.state === 'due')
+  const pmChip = pm.state === 'unknown'
+    ? el('span', { class: 'badge pm-unknown' }, icon('clock', 12), t('pm.unknownShort'))
+    : pmNeedsAction(pm.state)
     ? el('span', { class: 'badge badge-warn' }, icon('clock', 12), t('pm.due'))
     : (pm.state === 'soon' ? el('span', { class: 'badge badge-soon' }, icon('clock', 12), t('pm.soon')) : null);
   const dd = downDays(eq);
@@ -168,8 +170,15 @@ export async function renderEquipmentDetail(container, id) {
   // hero photo
   const heroImg = el('img', { class: 'eq-hero-img', alt: '' });
   const heroBox = el('button', { class: 'eq-hero', onclick: async () => {
-    const pid = await capturePhotoToDb();
-    if (pid) { if (eq.photoId) await db.deletePhoto(eq.photoId); eq.photoId = pid; await db.putEquipment(eq); refresh(); }
+    try {
+      const pid = await capturePhotoToDb();
+      if (!pid) return;
+      const old = eq.photoId;
+      eq.photoId = pid;
+      await db.putEquipment(eq);          // write the new reference first...
+      if (old) { try { await db.deletePhoto(old); } catch (e) { /* ignore */ } } // ...then reclaim
+      refresh();
+    } catch (e) { toast(t(isQuotaError(e) ? 'common.storageFull' : 'common.error'), 5000); }
   } });
   if (eq.photoId) { setPhoto(heroImg, eq.photoId); heroBox.append(heroImg); }
   else heroBox.append(el('div', { class: 'eq-hero-empty' }, icon('camera', 30), el('span', { class: 'small' }, t('equipment.addPhoto'))));
@@ -325,10 +334,11 @@ function pmCard(eq, pm) {
       el('p', { class: 'muted small', style: 'margin:0' }, t('pm.none')),
     );
   }
-  const stateCls = { overdue: 'pm-overdue', due: 'pm-overdue', soon: 'pm-soon', ok: 'pm-ok' }[pm.state] || 'pm-ok';
-  const stateLabel = pm.state === 'overdue' ? tn('pm.overdueBy', -pm.days)
+  const stateCls = { overdue: 'pm-overdue', due: 'pm-overdue', unknown: 'pm-unknown', soon: 'pm-soon', ok: 'pm-ok' }[pm.state] || 'pm-ok';
+  const stateLabel = pm.state === 'unknown' ? t('pm.unknown')
+    : pm.state === 'overdue' ? tn('pm.overdueBy', -pm.days, { n: -pm.days })
     : pm.state === 'due' ? t('pm.dueToday')
-    : pm.state === 'soon' ? tn('pm.dueIn', pm.days)
+    : pm.state === 'soon' ? tn('pm.dueIn', pm.days, { n: pm.days })
     : t('pm.nextOn', { d: fmtDate(pm.nextIso) });
   return el('div', { class: 'card section pm-card ' + stateCls },
     el('h3', { class: 'section-title' }, icon('shield-check', 15), t('pm.title')),
@@ -404,11 +414,25 @@ async function attachManual(eq, refresh) {
 // ---------- create/edit form ----------
 export async function equipmentForm(existing, onSaved, prefill = {}) {
   const isNew = !existing;
+  // Two defaults used to quietly corrupt every register built with this form:
+  //  - type defaulted to 'suction_pump', so any record saved without scrolling
+  //    back to field 2 inherited a suction pump's identity, risk class and PM
+  //    interval. 'other' is the honest default.
+  //  - lastPmDate defaulted to today, i.e. the app asserted "PM was done today"
+  //    for a machine it had just met. Registering a real 40-machine fleet then
+  //    made the dashboard read "nothing due" for the next 3-12 months, which
+  //    disables the single hook that brings a technician back each week.
+  //    Empty is honest: pmState() reports 'unknown' until a service is recorded.
   const eq = existing ? { ...existing } : {
-    id: uuid(), name: '', type: 'suction_pump', status: 'working',
-    pmDays: typeMeta('suction_pump').pm, lastPmDate: todayISO(), statusSince: todayISO(), parts: [], createdAt: Date.now(),
+    id: uuid(), name: '', type: 'other', status: 'working',
+    pmDays: typeMeta('other').pm, lastPmDate: null, statusSince: todayISO(), parts: [], createdAt: Date.now(),
     ...(prefill || {}),
   };
+  // Respect an interval the user chose by hand: changing the equipment type
+  // must not silently revert a hospital-mandated 30-day PM to the type default.
+  // Use != null, not truthiness: pmDays === 0 means "deliberately no schedule",
+  // which is precisely the setting a type change must not silently undo.
+  let pmCustomised = !!(existing && existing.pmDays != null && existing.pmDays !== typeMeta(existing.type).pm);
 
   const manuals = await db.listManuals();
   const equipment = await db.listEquipment();
@@ -442,12 +466,15 @@ export async function equipmentForm(existing, onSaved, prefill = {}) {
     for (const d of PM_PRESETS) {
       pmRow.append(el('button', {
         type: 'button', class: 'chip' + (pmDays === d ? ' active' : ''),
-        onclick: () => { pmDays = d; buildPm(); },
+        onclick: () => { pmDays = d; pmCustomised = true; buildPm(); },
       }, d === 0 ? t('pm.noneShort') : t('pm.everyDays', { n: d })));
     }
   };
   buildPm();
-  const lastPm = el('input', { type: 'date', class: 'input', value: eq.lastPmDate || todayISO() });
+  const lastPm = el('input', {
+    type: 'date', class: 'input', value: eq.lastPmDate || '',
+    'aria-label': t('pm.lastDone'),
+  });
 
   // manual link
   const manualSel = el('select', { class: 'select' }, el('option', { value: '' }, '—'),
@@ -467,17 +494,47 @@ export async function equipmentForm(existing, onSaved, prefill = {}) {
     try {
       const pid = await capturePhotoToDb();
       if (pid) { await dropCaptured(); photoId = pid; await setPhoto(photoImg, pid); photoWrap.style.display = ''; }
-    } catch (e) { toast(t('common.error')); }
+    } catch (e) { toast(t(isQuotaError(e) ? 'common.storageFull' : 'common.error'), 5000); }
     finally { photoBtn.disabled = false; }
   } }, icon('camera', 18), t('equipment.addPhoto'));
 
   // when type changes, refresh PM default + risk hint (only if user hasn't customised pm)
   typeSel.addEventListener('change', () => {
     const def = typeMeta(typeSel.value);
-    pmDays = def.pm; buildPm();
+    if (!pmCustomised) { pmDays = def.pm; buildPm(); }
     riskHint.textContent = t('equipment.riskAuto', { r: riskName(def.risk) });
   });
   const riskHint = el('p', { class: 'muted tiny', style: 'margin:4px 0 0' }, t('equipment.riskAuto', { r: riskName(typeMeta(eq.type).risk) }));
+
+  // The documented #1 reason technicians abandon a CMMS is data-entry burden
+  // (56% report being overloaded with documentation). Fifteen fields in one
+  // wall — with Save at the bottom of ~2.3 screens — is exactly that. The
+  // express path is now name + type + photo + make/model + location + status +
+  // PM interval; the rest of the WHO inventory fields are still all here, one
+  // tap away, and open automatically when editing a record that already uses
+  // them so nothing ever looks lost.
+  const usesExtra = !!(eq.serial || eq.assetTag || eq.power || eq.acquiredDate || eq.notes || eq.lastPmDate || eq.manualId);
+  const extra = el('div', { class: 'form-extra', style: usesExtra ? '' : 'display:none' },
+    el('div', { class: 'form-2col' },
+      el('div', {}, el('label', { class: 'lbl' }, t('equipment.serial')), serial),
+      el('div', {}, el('label', { class: 'lbl' }, t('equipment.assetTag')), assetTag),
+    ),
+    el('label', { class: 'lbl' }, t('equipment.power')), power,
+    el('label', { class: 'lbl' }, t('pm.lastDone')), lastPm,
+    el('label', { class: 'lbl' }, t('equipment.acquired') + ' (' + t('common.optional') + ')'), acquired,
+    manuals.length ? el('label', { class: 'lbl' }, t('equipment.manual')) : null,
+    manuals.length ? manualSel : null,
+    el('label', { class: 'lbl' }, t('equipment.notes')), notes,
+  );
+  const moreBtn = el('button', {
+    type: 'button', class: 'form-more', 'aria-expanded': usesExtra ? 'true' : 'false',
+    onclick: () => {
+      const open = extra.style.display !== 'none';
+      extra.style.display = open ? 'none' : '';
+      moreBtn.setAttribute('aria-expanded', open ? 'false' : 'true');
+      clear(moreBtn).append(icon(open ? 'chevron-down' : 'chevron-up', 17), t(open ? 'equipment.moreFields' : 'equipment.fewerFields'));
+    },
+  }, icon(usesExtra ? 'chevron-up' : 'chevron-down', 17), t(usesExtra ? 'equipment.fewerFields' : 'equipment.moreFields'));
 
   const body = el('div', { class: 'form' },
     dl,
@@ -488,21 +545,11 @@ export async function equipmentForm(existing, onSaved, prefill = {}) {
       el('div', {}, el('label', { class: 'lbl' }, t('equipment.manufacturer')), mfr),
       el('div', {}, el('label', { class: 'lbl' }, t('equipment.model')), model),
     ),
-    el('div', { class: 'form-2col' },
-      el('div', {}, el('label', { class: 'lbl' }, t('equipment.serial')), serial),
-      el('div', {}, el('label', { class: 'lbl' }, t('equipment.assetTag')), assetTag),
-    ),
-    el('div', { class: 'form-2col' },
-      el('div', {}, el('label', { class: 'lbl' }, t('equipment.location')), location),
-      el('div', {}, el('label', { class: 'lbl' }, t('equipment.power')), power),
-    ),
+    el('label', { class: 'lbl' }, t('equipment.location')), location,
     el('label', { class: 'lbl' }, t('equipment.statusLabel')), statusRow,
     el('label', { class: 'lbl' }, t('pm.title')), pmRow,
-    el('label', { class: 'lbl' }, t('pm.lastDone')), lastPm,
-    el('label', { class: 'lbl' }, t('equipment.acquired') + ' (' + t('common.optional') + ')'), acquired,
-    manuals.length ? el('label', { class: 'lbl' }, t('equipment.manual')) : null,
-    manuals.length ? manualSel : null,
-    el('label', { class: 'lbl' }, t('equipment.notes')), notes,
+    moreBtn,
+    extra,
   );
 
   const doSave = async () => {
@@ -516,12 +563,17 @@ export async function equipmentForm(existing, onSaved, prefill = {}) {
       assetTag: assetTag.value.trim(), location: location.value.trim(), power: power.value.trim(),
       status, pmDays, lastPmDate: lastPm.value || null, acquiredDate: acquired.value || null,
       statusSince: isNew ? todayISO() : (becameOOS ? todayISO() : (eq.statusSince || todayISO())),
-      manualId: manualSel.value || null, manualName: chosen ? chosen.name : null,
+      manualId: manualSel.value || null,
+      // Keep a remembered manual NAME when nothing is linked: after a restore
+      // the id is intentionally null and the name is the only thing that lets
+      // library.js re-attach the PDF when it is imported again. Blanking it on
+      // a routine save killed that path — on the new-phone flow, permanently.
+      manualName: chosen ? chosen.name : (manualSel.value ? null : (eq.manualName || null)),
       notes: notes.value.trim(), photoId,
     });
-    // reclaim a replaced photo blob
-    if (!isNew && originalPhoto && originalPhoto !== photoId) { try { await db.deletePhoto(originalPhoto); } catch (e) { /* ignore */ } }
     await db.putEquipment(eq);
+    // Reclaim the replaced blob only AFTER the new reference is on disk.
+    if (!isNew && originalPhoto && originalPhoto !== photoId) { try { await db.deletePhoto(originalPhoto); } catch (e) { /* ignore */ } }
     if (isNew) await db.counterBump('equipmentAdded');
     requestPersist();
     toast(t('equipment.saved'));

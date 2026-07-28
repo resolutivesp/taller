@@ -3,9 +3,9 @@
 // Everything is generated on-device; nothing is uploaded.
 
 import { db } from './db.js';
-import { el, clear, t, tn, toast, shareText, escapeHtml, copyText } from './ui.js';
+import { el, clear, t, tn, toast, shareText, escapeHtml, copyText, todayISO } from './ui.js';
 import { icon } from './icons.js';
-import { counts, partsList, pmState, statusName, typeName, riskName, typeMeta, fmtDate, downDays, normalizeParts } from './model.js';
+import { counts, partsList, pmState, pmLabel, statusName, typeName, riskName, typeMeta, fmtDate, downDays, normalizeParts } from './model.js';
 import { printLabels } from './qr.js';
 
 const partsStr = (eq) => normalizeParts(eq).map(p => `${p.qty || 1}× ${p.name}`).join('; ');
@@ -86,7 +86,7 @@ export async function renderReports(container) {
   for (const eq of equipment) {
     const pm = pmState(eq);
     if (pm.state === 'overdue') pmGroups.overdue.push({ eq, pm });
-    else if (pm.state === 'due') pmGroups.due.push({ eq, pm });
+    else if (pm.state === 'due' || pm.state === 'unknown') pmGroups.due.push({ eq, pm });
     else if (pm.state === 'soon') pmGroups.soon.push({ eq, pm });
   }
   const pmTotal = pmGroups.overdue.length + pmGroups.due.length + pmGroups.soon.length;
@@ -98,7 +98,7 @@ export async function renderReports(container) {
     const rows = [...pmGroups.overdue, ...pmGroups.due, ...pmGroups.soon];
     for (const { eq, pm } of rows) {
       const cls = pm.state === 'soon' ? 'st-pending' : 'st-part';
-      const label = pm.state === 'overdue' ? tn('pm.overdueBy', -pm.days) : pm.state === 'due' ? t('pm.dueToday') : tn('pm.dueIn', pm.days);
+      const label = pmLabel(pm);
       pmCard.append(el('button', { class: 'pm-line', onclick: () => location.hash = '#/equipment/' + eq.id },
         el('span', { class: 'small', style: 'font-weight:700' }, eq.name),
         el('span', { class: 'badge ' + cls }, label),
@@ -128,24 +128,68 @@ export async function renderReports(container) {
 // iCalendar with a recurring all-day PM reminder per scheduled machine.
 function buildIcs(scheduled) {
   const pad = (n) => String(n).padStart(2, '0');
-  const dt = (iso) => iso.replace(/-/g, '');
+  const dt = (iso) => String(iso).replace(/-/g, '');
+  const now = new Date();
+  // DTSTAMP is REQUIRED on every VEVENT; without it strict calendars (and some
+  // phone importers) reject the whole file rather than the one bad event.
+  const stamp = `${now.getUTCFullYear()}${pad(now.getUTCMonth() + 1)}${pad(now.getUTCDate())}T${pad(now.getUTCHours())}${pad(now.getUTCMinutes())}${pad(now.getUTCSeconds())}Z`;
   const lines = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Taller//PM//EN', 'CALSCALE:GREGORIAN'];
+  let seq = 0;
   for (const eq of scheduled) {
     const pm = pmState(eq);
-    if (!pm.nextIso) continue;
-    const uid = 'taller-' + eq.id + '@local';
-    lines.push('BEGIN:VEVENT', 'UID:' + uid,
-      'DTSTART;VALUE=DATE:' + dt(pm.nextIso),
-      'RRULE:FREQ=DAILY;INTERVAL=' + (eq.pmDays || 180),
+    // A machine with no service history has no COMPUTED next date, but it is
+    // exactly the one that needs a reminder. Anchor its first PM to today
+    // instead of dropping it: skipping these made the whole export empty for
+    // every machine registered through the express form, which leaves it
+    // empty for essentially every new user.
+    const anchorIso = pm.nextIso || (pm.state === 'unknown' ? todayISO() : null);
+    if (!anchorIso) continue;
+    // A corrupt anchor date from a restored backup turns into "NaNNaNNaN" here;
+    // shipping that produces a calendar file the technician's phone refuses.
+    const day = dt(anchorIso);
+    if (!/^\d{8}$/.test(day)) continue;
+    seq++;
+    // The id goes into the file verbatim: a CR/LF (or any control character) in
+    // a restored id closes the UID line and lets the backup inject arbitrary
+    // calendar properties. Keep only id-safe characters, and fall back to a
+    // sequence number so two machines can never end up sharing a UID.
+    const safeId = String(eq.id == null ? '' : eq.id).replace(/[^A-Za-z0-9._-]/g, '');
+    const uid = 'taller-' + (safeId || 'n' + seq) + '@local';
+    // Same injection risk on INTERVAL, which additionally accepts only a
+    // positive integer — a string/0/negative silently voids the recurrence.
+    const interval = Math.min(3650, Math.max(1, Math.round(Number(eq.pmDays)) || 180));
+    lines.push('BEGIN:VEVENT', 'UID:' + icsEsc(uid), 'DTSTAMP:' + stamp,
+      'DTSTART;VALUE=DATE:' + day,
+      'RRULE:FREQ=DAILY;INTERVAL=' + interval,
       'SUMMARY:' + icsEsc(t('reports.pmEventTitle', { name: eq.name })),
       'DESCRIPTION:' + icsEsc(typeName(eq.type) + (eq.location ? ' — ' + eq.location : '')),
       'BEGIN:VALARM', 'TRIGGER:PT0S', 'ACTION:DISPLAY', 'DESCRIPTION:' + icsEsc(t('reports.pmEventTitle', { name: eq.name })), 'END:VALARM',
       'END:VEVENT');
   }
   lines.push('END:VCALENDAR');
-  return lines.join('\r\n');
+  // Every content line ends CRLF, including the last one.
+  return lines.map(icsFold).join('\r\n') + '\r\n';
 }
-function icsEsc(s) { return String(s).replace(/([,;\\])/g, '\\$1').replace(/\n/g, '\\n'); }
+// A bare CR was left untouched before, so a name carrying one still ended the
+// content line early — the same injection the escaping exists to stop.
+function icsEsc(s) { return String(s == null ? '' : s).replace(/([,;\\])/g, '\\$1').replace(/\r\n|[\r\n]/g, '\\n'); }
+// Content lines are capped at 75 octets; a long machine name (or a location in
+// an accented language) overruns that and gets truncated or rejected. Fold on
+// octet boundaries — never inside a multi-byte character — with the CRLF+space
+// continuation, whose leading space counts against the limit.
+function icsFold(line) {
+  const enc = new TextEncoder();
+  if (enc.encode(line).length <= 75) return line;
+  const out = [];
+  let cur = '', bytes = 0;
+  for (const ch of line) {
+    const n = enc.encode(ch).length;
+    if (bytes + n > (out.length ? 74 : 75)) { out.push(cur); cur = ''; bytes = 0; }
+    cur += ch; bytes += n;
+  }
+  out.push(cur);
+  return out.join('\r\n ');
+}
 
 // Printable per-machine service record (specs + PM + parts + full history).
 export function printEquipmentRecord(eq, logs) {
@@ -176,7 +220,25 @@ function groupBy(arr, keyFn) {
 }
 
 // ---------- exports ----------
-function csvEsc(s) { return '"' + String(s == null ? '' : s).replace(/"/g, '""') + '"'; }
+// Quoting alone does not stop a spreadsheet from EXECUTING a cell that starts
+// with = + - @ tab or CR: these files are made to be handed to management, so a
+// part name typed as "=cmd|..." would run on the administrator's machine. Prefix
+// those with an apostrophe, which the spreadsheet strips on display; plain
+// numbers are left alone so a quantity column still reads as a number.
+function csvEsc(s) {
+  let v = String(s == null ? '' : s);
+  if (/^[=+\-@\t\r]/.test(v) && !/^-?\d+([.,]\d+)?$/.test(v)) v = "'" + v;
+  return '"' + v.replace(/"/g, '""') + '"';
+}
+
+// A quantity restored from a backup file can be any string. This value is
+// interpolated into printable HTML that openPrintable() serves from a blob: URL,
+// and blob: URLs INHERIT the app's origin — unescaped, it would run script with
+// full access to the local database. Coerce to a sane count, then escape.
+function qtyNum(q) {
+  const n = Math.round(Number(q));
+  return Number.isFinite(n) && n > 0 ? n : 1;
+}
 
 function buildInventoryCsv(equipment) {
   const header = [t('equipment.name'), t('equipment.type'), t('equipment.manufacturer'), t('equipment.model'),
@@ -236,7 +298,10 @@ function buildStatusHtml(equipment, c) {
   let rows = '';
   for (const e of equipment) {
     const pm = pmState(e);
-    const pmTxt = !pm.scheduled ? '—' : pm.state === 'overdue' ? `<span class="badge b-bad">${escapeHtml(tn('pm.overdueBy', -pm.days))}</span>` : pm.state === 'due' ? `<span class="badge b-warn">${escapeHtml(t('pm.dueToday'))}</span>` : pm.state === 'soon' ? `<span class="badge b-warn">${escapeHtml(tn('pm.dueIn', pm.days))}</span>` : escapeHtml(fmtDate(pm.nextIso));
+    const pmCls = pm.state === 'overdue' ? 'b-bad' : (pm.state === 'due' || pm.state === 'unknown' || pm.state === 'soon') ? 'b-warn' : '';
+    const pmTxt = !pm.scheduled ? '—'
+      : pmCls ? `<span class="badge ${pmCls}">${escapeHtml(pmLabel(pm))}</span>`
+      : escapeHtml(fmtDate(pm.nextIso));
     rows += `<tr><td>${escapeHtml(e.name)}</td><td>${escapeHtml(typeName(e.type))}</td><td>${escapeHtml(e.location || '—')}</td><td>${escapeHtml(e.serial || '—')}</td><td>${statusBadge(e.status)}</td><td>${pmTxt}</td><td>${escapeHtml(partsStr(e) || '—')}</td></tr>`;
   }
   return reportHead(t('reports.statusReport')) +
@@ -251,7 +316,7 @@ function buildPartsHtml(parts) {
   const g = groupBy(parts, p => p.equipmentName);
   let rows = '';
   for (const [name, items] of g) {
-    for (const p of items) rows += `<tr><td>${escapeHtml(name)}</td><td>${escapeHtml(p.location || '—')}</td><td style="text-align:center">${p.qty || 1}</td><td>${escapeHtml(p.part)}</td></tr>`;
+    for (const p of items) rows += `<tr><td>${escapeHtml(name)}</td><td>${escapeHtml(p.location || '—')}</td><td style="text-align:center">${escapeHtml(qtyNum(p.qty))}</td><td>${escapeHtml(p.part)}</td></tr>`;
   }
   return reportHead(t('reports.partsRequest')) +
     `<h1>${escapeHtml(t('reports.partsRequest'))}</h1><p class="sub">${escapeHtml(t('reports.partsSub'))}</p>

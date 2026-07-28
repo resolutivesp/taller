@@ -1,7 +1,7 @@
 // Taller — fault & preventive-maintenance history. Entries can link to a piece
 // of equipment and carry a photo. Target: under a minute per entry.
 
-import { db } from './db.js';
+import { db, isQuotaError } from './db.js';
 import { el, clear, t, tn, toast, modal, confirmModal, todayISO } from './ui.js';
 import { icon } from './icons.js';
 import { capturePhotoToDb, setPhoto } from './images.js';
@@ -45,8 +45,27 @@ export async function renderLog(container) {
 
   wrap.append(el('p', { class: 'muted small', style: 'margin:12px 0 4px' }, tn('logbook.entries', logs.length)));
   const list = el('div', { class: 'log-list' });
-  for (const entry of logs) list.append(logCard(entry, eqName(entry.equipmentId), () => renderLog(container)));
   wrap.append(list);
+
+  // Render a page at a time. A 300-machine fleet after a year is thousands of
+  // entries, and every card parses an icon SVG and resolves a photo blob out of
+  // IndexedDB — building them all froze the view for seconds on open and pulled
+  // every photo into memory at once. Cards (and their photos) are created only
+  // when the technician asks for them.
+  const PAGE = 50;
+  let shown = 0;
+  const moreBtn = el('button', { class: 'btn btn-secondary btn-block', style: 'margin-top:10px', onclick: () => showMore() });
+  const showMore = () => {
+    for (const entry of logs.slice(shown, shown + PAGE)) {
+      list.append(logCard(entry, eqName(entry.equipmentId), () => renderLog(container)));
+    }
+    shown = Math.min(shown + PAGE, logs.length);
+    const left = logs.length - shown;
+    moreBtn.style.display = left ? '' : 'none';
+    clear(moreBtn).append(icon('chevron-down', 18), t('logbook.showMore', { n: Math.min(PAGE, left) }));
+  };
+  showMore();
+  wrap.append(moreBtn);
 
   wrap.append(el('button', { class: 'btn btn-secondary btn-block', style: 'margin-top:12px', onclick: () => exportCsv(logs, equipment) },
     icon('download', 18), t('logbook.export')));
@@ -148,14 +167,29 @@ export async function openLogEntry(existing, onSaved) {
 
   // photo
   const photoImg = el('img', { class: 'form-photo', alt: '' });
+  // A capture is written to IndexedDB the moment it is taken. Dropping the
+  // reference alone (remove, replace, cancel) left a 150-300 KB blob in the
+  // database forever, on a phone where running out of storage is a real failure
+  // mode. Reclaim anything captured in this dialog — but never the photo the
+  // saved entry still points at, or its thumbnail would break.
+  const originalPhoto = existing.photoId || null;
+  const dropCaptured = async () => {
+    if (photoId && photoId !== originalPhoto) { try { await db.deletePhoto(photoId); } catch (e) { /* ignore */ } }
+  };
   const photoWrap = el('div', { class: 'form-photo-wrap', style: photoId ? '' : 'display:none' }, photoImg,
-    el('button', { class: 'photo-x', onclick: async () => { photoId = null; photoWrap.style.display = 'none'; } }, icon('x', 15)));
+    // icon-only control: without a label a screen reader announces just "button"
+    el('button', { class: 'photo-x', 'aria-label': t('common.delete'), onclick: async () => { await dropCaptured(); photoId = null; photoWrap.style.display = 'none'; } }, icon('x', 15)));
   if (photoId) setPhoto(photoImg, photoId);
   const photoBtn = el('button', { class: 'btn btn-secondary btn-block', onclick: async () => {
     photoBtn.disabled = true;
-    const id = await capturePhotoToDb();
-    photoBtn.disabled = false;
-    if (id) { photoId = id; await setPhoto(photoImg, id); photoWrap.style.display = ''; }
+    try {
+      const id = await capturePhotoToDb();
+      if (id) { await dropCaptured(); photoId = id; await setPhoto(photoImg, id); photoWrap.style.display = ''; }
+    } catch (e) {
+      // A throw here (a full phone is the likely one) used to leave the button
+      // disabled for the rest of the dialog, with nothing said about why.
+      toast(isQuotaError(e) ? t('common.storageFull') : t('common.error'));
+    } finally { photoBtn.disabled = false; }
   } }, icon('camera', 18), t('logbook.addPhoto'));
 
   const body = el('div', { class: 'form' },
@@ -170,12 +204,23 @@ export async function openLogEntry(existing, onSaved) {
     photoWrap, photoBtn,
   );
 
+  let saving = false; // guards the save handler (see below)
+  let saved = false;  // tells the close handler not to reclaim a photo now in use
   const actions = [
     { label: t('common.cancel'), kind: 'btn-secondary' },
     {
       label: existing.id ? t('common.save') : t('logbook.saveEntry'), kind: 'btn-primary',
       onClick: async () => {
         if (!problem.value.trim() && !equipmentId && !freeInput.value.trim()) { toast(t('common.error')); return false; }
+        // The dialog stays open until this resolves, and it awaits several
+        // times. A second tap in that window re-entered and wrote a SECOND
+        // entry, because a new entry carries no id and the store hands out a
+        // fresh autoincremented key each time. Block re-entry and grey the
+        // button, so a double-tap on a slow phone can't duplicate the record.
+        if (saving) return false;
+        saving = true;
+        const saveBtn = dlg.box.querySelector('.modal-actions .btn-primary');
+        if (saveBtn) saveBtn.disabled = true;
         const entry = {
           date: existing.date || todayISO(),
           equipmentId: equipmentId || existing.equipmentId || null,
@@ -184,21 +229,37 @@ export async function openLogEntry(existing, onSaved) {
           type, status, minutes: minutes || null, photoId,
         };
         if (existing.id) entry.id = existing.id;
-        await db.putLog(entry);
-        await db.counterBump('logEntries');
-        // close the loop: reflect the outcome onto the machine's status
-        if (scoped && updateChk.checked) {
-          const machine = await db.getEquipment(existing.equipmentId);
-          if (machine) {
-            const ms = STATUS_TO_MACHINE[status] || 'working';
-            if (isOOS(ms) && !isOOS(machine.status)) machine.statusSince = todayISO();
-            machine.status = ms;
-            if (ms === 'awaiting_parts' && partInput.value.trim()) {
-              machine.parts = normalizeParts(machine);
-              machine.parts.push({ name: partInput.value.trim(), qty: 1 });
+        try {
+          const key = await db.putLog(entry);
+          // Adopt the key the store assigned: if anything below fails and the
+          // technician taps Save again, that retry updates this entry instead
+          // of inserting a duplicate.
+          if (entry.id == null && key != null) { entry.id = key; existing.id = key; }
+          saved = true;
+          // the entry no longer points at the photo it was opened with
+          if (originalPhoto && originalPhoto !== photoId) { try { await db.deletePhoto(originalPhoto); } catch (e) { /* ignore */ } }
+          await db.counterBump('logEntries');
+          // close the loop: reflect the outcome onto the machine's status
+          if (scoped && updateChk.checked) {
+            const machine = await db.getEquipment(existing.equipmentId);
+            if (machine) {
+              const ms = STATUS_TO_MACHINE[status] || 'working';
+              if (isOOS(ms) && !isOOS(machine.status)) machine.statusSince = todayISO();
+              machine.status = ms;
+              if (ms === 'awaiting_parts' && partInput.value.trim()) {
+                machine.parts = normalizeParts(machine);
+                machine.parts.push({ name: partInput.value.trim(), qty: 1 });
+              }
+              await db.putEquipment(machine);
             }
-            await db.putEquipment(machine);
           }
+        } catch (e) {
+          // keep the dialog (and the typed work) open so the save can be retried
+          toast(isQuotaError(e) ? t('common.storageFull') : t('common.error'));
+          return false;
+        } finally {
+          saving = false;
+          if (saveBtn) saveBtn.disabled = false;
         }
         toast(t('logbook.saved'));
         if (onSaved) onSaved(entry);
@@ -215,7 +276,13 @@ export async function openLogEntry(existing, onSaved) {
     });
   }
 
-  modal({ title: existing.id ? t('common.edit') : t('logbook.newEntry'), body, actions });
+  // onClose covers every way out that isn't a save — Cancel, Escape, tapping the
+  // backdrop, deleting the entry — each of which used to strand the captured
+  // photo's blob in the database with nothing referencing it.
+  const dlg = modal({
+    title: existing.id ? t('common.edit') : t('logbook.newEntry'), body, actions,
+    onClose: () => { if (!saved) dropCaptured(); },
+  });
   if (!existing.id && !scoped) setTimeout(() => (scoped ? problem : eqSelect).focus(), 60);
 }
 
@@ -240,7 +307,14 @@ function chipRow(values, labelFn, current, onPick, toggleable = false) {
 
 function exportCsv(logs, equipment) {
   const eqName = (id) => { const e = equipment.find(x => x.id === id); return e ? e.name : ''; };
-  const esc = (s) => '"' + String(s == null ? '' : s).replace(/"/g, '""') + '"';
+  // Same formula-injection guard as the reports export: a "problem" note typed
+  // starting with = + - @ tab or CR is EXECUTED by the spreadsheet when the
+  // administrator opens the file. Plain numbers are left readable.
+  const esc = (s) => {
+    let v = String(s == null ? '' : s);
+    if (/^[=+\-@\t\r]/.test(v) && !/^-?\d+([.,]\d+)?$/.test(v)) v = "'" + v;
+    return '"' + v.replace(/"/g, '""') + '"';
+  };
   const typeLabel = (k) => t(TYPE_KEYS[k] || TYPE_KEYS.repair);
   const statusLabel = (k) => t((STATUS_META[k] || STATUS_META.pending).key);
   const header = [t('logbook.date'), t('logbook.equipment'), t('logbook.type'), t('logbook.status'), t('logbook.minutes'), t('logbook.problem')];

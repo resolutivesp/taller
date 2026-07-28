@@ -1,7 +1,7 @@
 // Taller — shared domain model: dates, equipment/PM/risk helpers, aggregates.
 // Kept dependency-light (only strings/icons) so equipment, home and reports share it.
 
-import { t } from './ui.js';
+import { t, tn } from './ui.js';
 import { EQUIPMENT_TYPES, PM_SOON_DAYS } from './config.js';
 
 // ---------- dates ----------
@@ -52,14 +52,17 @@ export const RISK_META = {
 export function riskName(r) { return t('equipment.risk.' + r); }
 
 // ---------- preventive maintenance ----------
-// Returns { scheduled, nextIso, days, state } where state ∈ overdue|due|soon|ok|none
+// Returns { scheduled, nextIso, days, state } where state ∈ overdue|due|soon|ok|none|unknown
 export function pmState(eq) {
   // retired machines are never "due" — don't nag the tech to service dead kit
   if (eq.status === 'retired') return { scheduled: false, state: 'none', nextIso: null, days: null };
   const days = eq.pmDays || 0;
   if (!days) return { scheduled: false, state: 'none', nextIso: null, days: null };
   const anchor = eq.lastPmDate || eq.acquiredDate || null;
-  if (!anchor) return { scheduled: true, state: 'due', nextIso: null, days: 0 };
+  // No anchor = we have never recorded a service for this machine. Say exactly
+  // that instead of claiming it is "due today", which reads like a computed
+  // schedule the tech can trust. It still needs attention, so it still counts.
+  if (!anchor) return { scheduled: true, state: 'unknown', nextIso: null, days: null };
   const nextIso = addDays(anchor, days);
   const d = daysUntil(nextIso);
   let state = 'ok';
@@ -67,6 +70,22 @@ export function pmState(eq) {
   else if (d === 0) state = 'due';
   else if (d <= PM_SOON_DAYS) state = 'soon';
   return { scheduled: true, state, nextIso, days: d };
+}
+
+// Does this PM state demand action now? ('unknown' = never recorded — it does.)
+export function pmNeedsAction(state) {
+  return state === 'overdue' || state === 'due' || state === 'unknown';
+}
+
+// Single source of truth for how a PM state is worded, so the dashboard, the
+// equipment card, the detail view and every report always agree.
+export function pmLabel(pm) {
+  if (!pm || !pm.scheduled) return '—';
+  if (pm.state === 'unknown') return t('pm.unknown');
+  if (pm.state === 'overdue') return tn('pm.overdueBy', -pm.days, { n: -pm.days });
+  if (pm.state === 'due') return t('pm.dueToday');
+  if (pm.state === 'soon') return tn('pm.dueIn', pm.days, { n: pm.days });
+  return fmtDate(pm.nextIso);
 }
 
 // ---------- downtime ----------
@@ -91,7 +110,7 @@ export function counts(equipment) {
   for (const eq of equipment) {
     if (c[eq.status] !== undefined) c[eq.status]++;
     const pm = pmState(eq);
-    if (pm.state === 'overdue' || pm.state === 'due') c.pmDue++;
+    if (pmNeedsAction(pm.state)) c.pmDue++;
     else if (pm.state === 'soon') c.pmSoon++;
     c.parts += normalizeParts(eq).length;
     const dd = downDays(eq);
@@ -125,6 +144,7 @@ export function attention(equipment) {
     if (eq.status === 'awaiting_parts') score += 80;
     if (pm.state === 'overdue') score += 60 + Math.min(30, -pm.days);
     else if (pm.state === 'due') score += 50;
+    else if (pm.state === 'unknown') score += 30; // needs a first service record
     else if (pm.state === 'soon') score += 20;
     if (typeMeta(eq.type).risk === 'high') score *= 1.4;
     return { eq, pm, score };

@@ -28,7 +28,7 @@ function sources() {
     {
       name: "Frank's Hospital Workshop",
       desc: t('find.srcFranks'),
-      url: () => 'http://www.frankshospitalworkshop.com/',
+      url: () => 'https://www.frankshospitalworkshop.com/',
     },
     {
       name: 'MedWrench',

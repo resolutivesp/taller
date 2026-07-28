@@ -2,15 +2,59 @@
 // pdf.js (Apache-2.0) is vendored in /vendor/pdfjs (legacy build).
 
 let _pdfjs = null;
+let _pdfjsLoading = null;
+
+// Thrown when the pdf.js engine itself could not be loaded (offline and not
+// cached). Callers must distinguish this from "this PDF is damaged" — telling a
+// technician their manual is corrupt when the engine simply is not cached is
+// how you lose a user permanently.
+export class PdfEngineUnavailable extends Error {
+  constructor() { super('pdf-engine-unavailable'); this.name = 'PdfEngineUnavailable'; }
+}
 
 export async function loadPdfJs() {
   if (_pdfjs) return _pdfjs;
-  const mod = await import('../vendor/pdfjs/pdf.min.mjs');
-  const pdfjs = mod.default || mod;
-  pdfjs.GlobalWorkerOptions.workerSrc = new URL('vendor/pdfjs/pdf.worker.min.mjs', document.baseURI).href;
-  _pdfjs = pdfjs;
-  return pdfjs;
+  // Do NOT memoise a rejected promise: a failure while offline must not poison
+  // the session for ever — retry the next time the user tries, when they may
+  // well have signal again.
+  if (_pdfjsLoading) return _pdfjsLoading;
+  _pdfjsLoading = (async () => {
+    let mod;
+    try {
+      mod = await import('../vendor/pdfjs/pdf.min.mjs');
+    } catch (e) {
+      throw new PdfEngineUnavailable();
+    }
+    const pdfjs = mod.default || mod;
+    pdfjs.GlobalWorkerOptions.workerSrc = new URL('vendor/pdfjs/pdf.worker.min.mjs', document.baseURI).href;
+    _pdfjs = pdfjs;
+    return pdfjs;
+  })();
+  try {
+    return await _pdfjsLoading;
+  } finally {
+    if (!_pdfjs) _pdfjsLoading = null; // allow a retry after a failure
+  }
 }
+
+// Is the engine ready to use without the network? Used to pre-flight actions
+// that would otherwise dead-end minutes later.
+export function pdfEngineLoaded() { return !!_pdfjs; }
+
+// pdf.js compares maxImageSize against WIDTH * HEIGHT IN PIXELS, not bytes:
+//   if (-1 !== maxImageSize && width * height > maxImageSize) { warn(...); return; }
+// The old value (8 * 1024 * 1024 = 8.39 MP) was written as if it were bytes and
+// sat just BELOW the size of a standard 300 dpi page scan:
+//   A4  @300dpi = 2480 x 3508 =  8.70 MP  -> silently dropped
+//   Letter@300dpi = 2550 x 3300 = 8.42 MP -> silently dropped
+// Because ignoreErrors defaults to true, the image was discarded with only a
+// console warning: scanned manuals imported "successfully", then rendered as
+// BLANK WHITE PAGES, and OCR dutifully processed those blank canvases and
+// found no text. 300 dpi is the standard archival scan resolution for service
+// manuals, i.e. the app's single most important real-world input.
+// 24 MP covers A4/A3 at 300 dpi and A4 at 400-500 dpi while still bounding a
+// single decode to roughly 100 MB on a 2 GB phone.
+const MAX_IMAGE_PIXELS = 24 * 1000 * 1000;
 
 export async function openPdf(blob) {
   const pdfjs = await loadPdfJs();
@@ -20,7 +64,7 @@ export async function openPdf(blob) {
     isEvalSupported: false,
     disableAutoFetch: false,
     // keep memory bounded on low-RAM devices (cap any single decoded image)
-    maxImageSize: 8 * 1024 * 1024,
+    maxImageSize: MAX_IMAGE_PIXELS,
   });
   return task.promise; // PDFDocumentProxy
 }
@@ -82,6 +126,14 @@ export function isScanned(extract, numPages) {
 
 // Render one page into a canvas. Returns {canvas, cssW, cssH, viewport, dpr}.
 // scale is CSS pixels per PDF unit; caps total pixels to protect low-RAM phones.
+// pdf.js refuses to render twice into the same canvas concurrently ("Cannot use
+// the same canvas during multiple render() operations"). The reader reuses one
+// canvas and fires paint() without awaiting, so tapping "next" twice while a
+// slow scanned page rasterises used to throw, get swallowed, and leave the page
+// number ahead of what is actually drawn — the reader silently SKIPPED a page.
+// Track the in-flight task per canvas and cancel it before starting the next.
+const _activeRenders = new WeakMap();
+
 export async function renderPage(doc, pageNum, cssWidth, zoom = 1, canvas = null) {
   const page = await doc.getPage(pageNum);
   const base = page.getViewport({ scale: 1 });
@@ -93,13 +145,27 @@ export async function renderPage(doc, pageNum, cssWidth, zoom = 1, canvas = null
   if (px > MAX_PX) scale *= Math.sqrt(MAX_PX / px);
   const viewport = page.getViewport({ scale: scale * dpr });
   const c = canvas || document.createElement('canvas');
+
+  // Cancel any render still running on this canvas and wait for it to unwind.
+  const prev = _activeRenders.get(c);
+  if (prev) {
+    try { prev.cancel(); } catch (e) { /* already finished */ }
+    try { await prev.promise; } catch (e) { /* expected: RenderingCancelledException */ }
+  }
+
   c.width = Math.floor(viewport.width);
   c.height = Math.floor(viewport.height);
   c.style.width = Math.floor(viewport.width / dpr) + 'px';
   c.style.height = Math.floor(viewport.height / dpr) + 'px';
   const ctx = c.getContext('2d', { alpha: false });
-  await page.render({ canvasContext: ctx, viewport }).promise;
-  page.cleanup();
+  const task = page.render({ canvasContext: ctx, viewport });
+  _activeRenders.set(c, task);
+  try {
+    await task.promise;
+  } finally {
+    if (_activeRenders.get(c) === task) _activeRenders.delete(c);
+    page.cleanup();
+  }
   return { canvas: c, cssW: Math.floor(viewport.width / dpr), cssH: Math.floor(viewport.height / dpr), viewport, dpr };
 }
 

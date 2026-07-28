@@ -10,15 +10,19 @@ export const STRINGS = {
     time: { today: 'today', inDays: 'in {n} days', daysAgo: '{n} days ago' },
 
     home: {
+      noEquipmentTitle: 'No machines registered yet',
+      noEquipmentText: 'Your manuals are ready. Add the machines you look after to see what is down and what maintenance is due.',
       title: 'Workshop', subtitle: 'Your equipment at a glance',
       welcomeTitle: 'Welcome to your workshop', welcomeText: 'Add the equipment you look after and the service manuals you use. Everything stays on this phone.',
       addEquipment: 'Add equipment', addManual: 'Add a manual', tryDemo: 'Try the demo',
       tileEquipment: 'Equipment', tileUptime: 'Uptime', tileDown: 'Out of service', tilePmDue: 'PM due',
-      partsNeeded: '{n} spare parts needed — see request', needsAttention: 'Needs attention', allGood: 'All equipment operational — nothing due.',
+      partsNeeded: '{n} spare part needed — see request|{n} spare parts needed — see request', needsAttention: 'Needs attention', allGood: 'All equipment operational — nothing due.',
       quickActions: 'Quick actions', recent: 'Recent activity',
     },
 
     equipment: {
+      moreFields: 'More details',
+      fewerFields: 'Fewer details',
       title: 'Equipment', add: 'Add equipment', save: 'Save equipment', saved: 'Equipment saved', needName: 'Give the equipment a name.',
       saveAdd: 'Save & add another',
       emptyTitle: 'No equipment yet', emptyText: 'Register the machines you maintain — one card each, with status, maintenance schedule, manual and history.',
@@ -50,6 +54,8 @@ export const STRINGS = {
     },
 
     pm: {
+      unknownShort: 'No record',
+      unknown: 'No service recorded yet',
       title: 'Preventive maintenance', none: 'No schedule set.', noneShort: 'None',
       every: 'Every', everyDays: 'Every {n} days', lastDone: 'Last done', markDone: 'Mark PM done',
       doneToast: 'Preventive maintenance recorded.', autoNote: 'Preventive maintenance completed.',
@@ -70,6 +76,9 @@ export const STRINGS = {
     },
 
     qr: {
+      libFailed: 'Couldn\'t load the QR generator — connect to the internet once, then try again.',
+      unavailable: 'QR unavailable offline',
+      building: 'Preparing labels… {n}/{total}',
       title: 'Asset tag (QR)',
       explain: 'Print this code, stick it on the machine, and scan it to open this record instantly.',
       printLabel: 'Print label', printAll: 'Print asset labels', labelsTitle: 'Asset labels', noneToLabel: 'No equipment to label yet.',
@@ -83,13 +92,23 @@ export const STRINGS = {
       addNew: 'Add as new equipment',
     },
     backup: {
+      skippedNewer: '{n} machine was newer on this phone and was kept.|{n} machines were newer on this phone and were kept.',
+      cancelled: 'Backup cancelled — nothing was saved.',
+      failed: 'The backup could not be created. Nothing was saved.',
+      unknownDate: 'unknown date',
+      confirmIntro: 'This backup was made on {d}. Restoring it will:',
+      confirmAdd: 'add {n} new machine|add {n} new machines',
+      confirmUpdate: 'overwrite {n} machine you already have|overwrite {n} machines you already have',
+      confirmOlder: 'skip {n} machine that is newer on this phone|skip {n} machines that are newer on this phone',
+      confirmLogs: 'merge {n} service record (duplicates are skipped)|merge {n} service records (duplicates are skipped)',
+      confirmGo: 'Restore',
       title: 'Backup & restore',
       intro: 'Your equipment, photos and history live only on this phone. Back them up so you never lose your work — and to move to a new phone. Save the file somewhere safe, or send it to yourself on WhatsApp / email.',
       now: 'Back up now', share: 'Send backup to myself', done: 'Backup saved',
       lastAt: 'Last backup: {d}', never: 'Not backed up yet.',
       restoreTitle: 'Restore', restoreText: 'Restore from a backup file (merges into what you have).',
       restoreBtn: 'Choose backup file', restored: 'Restored {n} machine.|Restored {n} machines.',
-      reimport: 'Re-import your {n} manual(s) — they stay as your own PDF files.',
+      reimport: 'Re-import your {n} manual — it stays as your own PDF file.|Re-import your {n} manuals — they stay as your own PDF files.',
       badFile: 'That file is not a valid Taller backup.',
       tooNew: 'This backup is from a newer version of Taller.',
       manualsNote: 'Manuals (your PDF files) are not in the backup — re-import them after restoring.',
@@ -97,6 +116,9 @@ export const STRINGS = {
     },
 
     common: {
+      confirm: 'Confirm',
+      dismiss: 'Dismiss',
+      storageFull: 'Phone storage is full — free up some space and try again.',
       cancel: 'Cancel', save: 'Save', delete: 'Delete', close: 'Close',
       back: 'Back', ok: 'OK', share: 'Share', copy: 'Copy', copied: 'Copied!',
       loading: 'Loading…', error: 'Something went wrong', retry: 'Retry',
@@ -106,6 +128,7 @@ export const STRINGS = {
     },
 
     onboarding: {
+      more: 'What it does',
       welcome: 'Welcome to Taller',
       p1t: 'Every manual in your pocket',
       p1s: 'Import the PDF service manuals you already have. They stay on your phone.',
@@ -127,6 +150,10 @@ export const STRINGS = {
     },
 
     library: {
+      saving: 'Saving to this phone…',
+      importCancelled: 'Import cancelled — nothing was saved.',
+      storageFull: 'Your phone is full, so the manual was not saved. Free some space (photos, videos or another manual) and try again.',
+      engineOffline: 'The app needs internet once to finish setting up. Connect, then add the manual again — this PDF is fine.',
       title: 'Manuals',
       searchAll: 'Search all manuals… (fault, error code, part)',
       addManual: 'Add manual (PDF)',
@@ -195,6 +222,15 @@ export const STRINGS = {
     },
 
     ask: {
+      extractBadge: 'Exact pages from your manuals',
+      weakBadge: 'Weak match',
+      weakText: 'Nothing in your manuals matches this question well. The pages below are the closest, but they may be about something else — read them before trusting anything.',
+      insufficientBadge: 'Not in your manuals',
+      truncated: 'This answer was cut off before the end. Open the cited pages — steps may be missing.',
+      badCitation: 'Warning: page {p} was cited but was not among the pages searched. Do not trust that citation.',
+      partialPages: 'Only part of each page was read. A procedure may continue beyond what the assistant saw — check the full page.',
+      relevance: 'Relevance',
+      conf: { weak: 'weak', fair: 'fair', good: 'good' },
       title: 'Ask your manuals',
       hint: 'Describe the fault. The answer comes ONLY from the manuals you added, with the page cited.',
       placeholder: 'e.g. Suction pump shows E3 and stops after a few seconds',
@@ -219,6 +255,7 @@ export const STRINGS = {
     },
 
     logbook: {
+      showMore: 'Show {n} more',
       title: 'Service history',
       newEntry: 'New entry',
       logFault: 'Log a fault',
@@ -269,6 +306,10 @@ export const STRINGS = {
     },
 
     ocr: {
+      needInternet: 'OCR needs internet once to download its engine (~7 MB). Connect to the internet, then try again.',
+      engineReady: 'The OCR engine is already on this phone — this works offline.',
+      savedAsYouGo: 'Pages are saved as they are read — you can stop any time and continue later.',
+      storageFull: 'Your phone is full. The pages read so far are saved; free some space to finish.',
       title: 'Make manual searchable',
       intro: 'This manual is scanned (photos of pages). OCR reads the text so you can search it. It runs on your phone: about 10–40 seconds per page. Keep the app open, ideally plugged in.',
       firstTime: 'The first time needs internet once (to load the OCR engine, ~7 MB). After that it works offline.',
@@ -281,6 +322,8 @@ export const STRINGS = {
     },
 
     more: {
+      offlinePartial: 'Partly ready for offline use. Stay connected a moment longer to finish downloading.',
+      offlineFailed: 'Could not finish setting up for offline use. Reopen the app while connected.',
       title: 'More',
       language: 'Language',
       theme: 'Theme', themeAuto: 'Auto', themeLight: 'Light', themeDark: 'Dark',
@@ -316,15 +359,19 @@ export const STRINGS = {
     time: { today: "aujourd'hui", inDays: 'dans {n} jours', daysAgo: 'il y a {n} jours' },
 
     home: {
+      noEquipmentTitle: 'Aucun équipement enregistré',
+      noEquipmentText: 'Vos manuels sont prêts. Ajoutez les équipements dont vous vous occupez pour voir ce qui est en panne et ce qui est à entretenir.',
       title: 'Atelier', subtitle: "Vos équipements en un coup d'œil",
       welcomeTitle: 'Bienvenue dans votre atelier', welcomeText: 'Ajoutez les équipements dont vous vous occupez et les manuels que vous utilisez. Tout reste sur ce téléphone.',
       addEquipment: 'Ajouter un équipement', addManual: 'Ajouter un manuel', tryDemo: 'Essayer la démo',
       tileEquipment: 'Équipements', tileUptime: 'Disponibilité', tileDown: 'Hors service', tilePmDue: 'MP à faire',
-      partsNeeded: '{n} pièces détachées nécessaires — voir la demande', needsAttention: 'À traiter', allGood: 'Tous les équipements fonctionnent — rien à faire.',
+      partsNeeded: '{n} pièce détachée nécessaire — voir la demande|{n} pièces détachées nécessaires — voir la demande', needsAttention: 'À traiter', allGood: 'Tous les équipements fonctionnent — rien à faire.',
       quickActions: 'Actions rapides', recent: 'Activité récente',
     },
 
     equipment: {
+      moreFields: 'Plus de détails',
+      fewerFields: 'Moins de détails',
       title: 'Équipements', add: 'Ajouter un équipement', save: 'Enregistrer', saved: 'Équipement enregistré', needName: "Donnez un nom à l'équipement.",
       saveAdd: 'Enregistrer et ajouter',
       emptyTitle: 'Aucun équipement', emptyText: 'Enregistrez les machines que vous entretenez — une fiche chacune, avec statut, échéance de maintenance, manuel et historique.',
@@ -356,6 +403,8 @@ export const STRINGS = {
     },
 
     pm: {
+      unknownShort: 'Aucun suivi',
+      unknown: 'Aucun entretien enregistré',
       title: 'Maintenance préventive', none: 'Aucune échéance définie.', noneShort: 'Aucune',
       every: 'Tous les', everyDays: 'Tous les {n} jours', lastDone: 'Dernière fois', markDone: 'Marquer MP faite',
       doneToast: 'Maintenance préventive enregistrée.', autoNote: 'Maintenance préventive effectuée.',
@@ -376,6 +425,9 @@ export const STRINGS = {
     },
 
     qr: {
+      libFailed: 'Impossible de charger le générateur de QR — connectez-vous à internet une fois, puis réessayez.',
+      unavailable: 'QR indisponible hors ligne',
+      building: 'Préparation des étiquettes… {n}/{total}',
       title: 'Étiquette (QR)',
       explain: 'Imprimez ce code, collez-le sur la machine, et scannez-le pour ouvrir sa fiche instantanément.',
       printLabel: "Imprimer l'étiquette", printAll: 'Imprimer les étiquettes', labelsTitle: "Étiquettes d'équipement", noneToLabel: 'Aucun équipement à étiqueter.',
@@ -389,13 +441,23 @@ export const STRINGS = {
       addNew: 'Ajouter comme nouvel équipement',
     },
     backup: {
+      skippedNewer: '{n} équipement était plus récent sur ce téléphone et a été conservé.|{n} équipements étaient plus récents sur ce téléphone et ont été conservés.',
+      cancelled: 'Sauvegarde annulée — rien n\'a été enregistré.',
+      failed: 'La sauvegarde n\'a pas pu être créée. Rien n\'a été enregistré.',
+      unknownDate: 'date inconnue',
+      confirmIntro: 'Cette sauvegarde date du {d}. La restaurer va :',
+      confirmAdd: 'ajouter {n} nouvel équipement|ajouter {n} nouveaux équipements',
+      confirmUpdate: 'remplacer {n} équipement déjà présent|remplacer {n} équipements déjà présents',
+      confirmOlder: 'ignorer {n} équipement plus récent sur ce téléphone|ignorer {n} équipements plus récents sur ce téléphone',
+      confirmLogs: 'fusionner {n} intervention (les doublons sont ignorés)|fusionner {n} interventions (les doublons sont ignorés)',
+      confirmGo: 'Restaurer',
       title: 'Sauvegarde & restauration',
       intro: "Vos équipements, photos et historique n'existent que sur ce téléphone. Sauvegardez-les pour ne rien perdre — et pour changer de téléphone. Enregistrez le fichier en lieu sûr, ou envoyez-le-vous par WhatsApp / e-mail.",
       now: 'Sauvegarder maintenant', share: "M'envoyer la sauvegarde", done: 'Sauvegarde enregistrée',
       lastAt: 'Dernière sauvegarde : {d}', never: 'Pas encore sauvegardé.',
       restoreTitle: 'Restaurer', restoreText: "Restaurer depuis un fichier de sauvegarde (fusionne avec l'existant).",
       restoreBtn: 'Choisir le fichier', restored: '{n} équipement restauré.|{n} équipements restaurés.',
-      reimport: 'Réimportez vos {n} manuel(s) — ils restent vos propres fichiers PDF.',
+      reimport: 'Réimportez votre {n} manuel — il reste votre propre fichier PDF.|Réimportez vos {n} manuels — ils restent vos propres fichiers PDF.',
       badFile: "Ce fichier n'est pas une sauvegarde Taller valide.",
       tooNew: "Cette sauvegarde provient d'une version plus récente de Taller.",
       manualsNote: 'Les manuels (vos fichiers PDF) ne sont pas inclus — réimportez-les après restauration.',
@@ -403,6 +465,9 @@ export const STRINGS = {
     },
 
     common: {
+      confirm: 'Confirmation',
+      dismiss: 'Masquer',
+      storageFull: 'Le stockage du téléphone est plein — libérez de l\'espace et réessayez.',
       cancel: 'Annuler', save: 'Enregistrer', delete: 'Supprimer', close: 'Fermer',
       back: 'Retour', ok: 'OK', share: 'Partager', copy: 'Copier', copied: 'Copié !',
       loading: 'Chargement…', error: 'Une erreur est survenue', retry: 'Réessayer',
@@ -412,6 +477,7 @@ export const STRINGS = {
     },
 
     onboarding: {
+      more: 'Ce que ça fait',
       welcome: 'Bienvenue sur Taller',
       p1t: 'Tous vos manuels en poche',
       p1s: 'Importez les manuels de service PDF que vous avez déjà. Ils restent sur votre téléphone.',
@@ -433,6 +499,10 @@ export const STRINGS = {
     },
 
     library: {
+      saving: 'Enregistrement sur le téléphone…',
+      importCancelled: 'Import annulé — rien n\'a été enregistré.',
+      storageFull: 'Le téléphone est plein : le manuel n\'a pas été enregistré. Libérez de l\'espace (photos, vidéos ou un autre manuel) puis réessayez.',
+      engineOffline: 'L\'appli a besoin d\'internet une seule fois pour terminer son installation. Connectez-vous, puis rajoutez le manuel — ce PDF n\'a rien.',
       title: 'Manuels',
       searchAll: 'Chercher dans tous les manuels… (panne, code erreur)',
       addManual: 'Ajouter un manuel (PDF)',
@@ -501,6 +571,15 @@ export const STRINGS = {
     },
 
     ask: {
+      extractBadge: 'Pages exactes de vos manuels',
+      weakBadge: 'Correspondance faible',
+      weakText: 'Rien dans vos manuels ne correspond vraiment à cette question. Les pages ci-dessous sont les plus proches, mais elles peuvent parler d\'autre chose — lisez-les avant de vous y fier.',
+      insufficientBadge: 'Absent de vos manuels',
+      truncated: 'Cette réponse a été coupée avant la fin. Ouvrez les pages citées — des étapes peuvent manquer.',
+      badCitation: 'Attention : la page {p} est citée mais ne fait pas partie des pages consultées. Ne vous fiez pas à cette citation.',
+      partialPages: 'Seule une partie de chaque page a été lue. Une procédure peut se poursuivre au-delà — vérifiez la page entière.',
+      relevance: 'Pertinence',
+      conf: { weak: 'faible', fair: 'moyenne', good: 'bonne' },
       title: 'Interrogez vos manuels',
       hint: 'Décrivez la panne. La réponse vient UNIQUEMENT des manuels ajoutés, avec la page citée.',
       placeholder: 'ex. L’aspirateur de mucosités affiche E3 puis s’arrête',
@@ -525,6 +604,7 @@ export const STRINGS = {
     },
 
     logbook: {
+      showMore: 'Afficher {n} de plus',
       title: 'Historique de service',
       newEntry: 'Nouvelle entrée',
       logFault: 'Signaler une panne',
@@ -575,6 +655,10 @@ export const STRINGS = {
     },
 
     ocr: {
+      needInternet: 'L\'OCR a besoin d\'internet une seule fois pour télécharger son moteur (~7 Mo). Connectez-vous, puis réessayez.',
+      engineReady: 'Le moteur OCR est déjà sur le téléphone — tout fonctionne hors ligne.',
+      savedAsYouGo: 'Les pages sont enregistrées au fur et à mesure — vous pouvez arrêter et reprendre plus tard.',
+      storageFull: 'Le téléphone est plein. Les pages déjà lues sont enregistrées ; libérez de l\'espace pour terminer.',
       title: 'Rendre le manuel consultable',
       intro: 'Ce manuel est scanné (photos de pages). L’OCR lit le texte pour permettre la recherche. Tout se passe sur votre téléphone : environ 10 à 40 secondes par page. Gardez l’appli ouverte, idéalement en charge.',
       firstTime: 'La première fois nécessite internet une seule fois (moteur OCR, ~7 Mo). Ensuite, tout fonctionne hors ligne.',
@@ -587,6 +671,8 @@ export const STRINGS = {
     },
 
     more: {
+      offlinePartial: 'Partiellement prêt pour le hors ligne. Restez connecté un instant pour terminer le téléchargement.',
+      offlineFailed: 'Impossible de terminer l\'installation hors ligne. Rouvrez l\'appli en étant connecté.',
       title: 'Plus',
       language: 'Langue',
       theme: 'Thème', themeAuto: 'Auto', themeLight: 'Clair', themeDark: 'Sombre',
@@ -622,15 +708,19 @@ export const STRINGS = {
     time: { today: 'hoy', inDays: 'en {n} días', daysAgo: 'hace {n} días' },
 
     home: {
+      noEquipmentTitle: 'Aún no hay equipos registrados',
+      noEquipmentText: 'Tus manuales están listos. Añade los equipos que mantienes para ver qué está parado y qué mantenimiento toca.',
       title: 'Taller', subtitle: 'Tus equipos de un vistazo',
       welcomeTitle: 'Bienvenido a tu taller', welcomeText: 'Añade los equipos que mantienes y los manuales que usas. Todo se queda en este teléfono.',
       addEquipment: 'Añadir equipo', addManual: 'Añadir un manual', tryDemo: 'Probar la demo',
       tileEquipment: 'Equipos', tileUptime: 'Disponibilidad', tileDown: 'Fuera de servicio', tilePmDue: 'MP pendiente',
-      partsNeeded: '{n} repuestos necesarios — ver solicitud', needsAttention: 'Requiere atención', allGood: 'Todos los equipos operativos — nada pendiente.',
+      partsNeeded: '{n} repuesto necesario — ver solicitud|{n} repuestos necesarios — ver solicitud', needsAttention: 'Requiere atención', allGood: 'Todos los equipos operativos — nada pendiente.',
       quickActions: 'Acciones rápidas', recent: 'Actividad reciente',
     },
 
     equipment: {
+      moreFields: 'Más detalles',
+      fewerFields: 'Menos detalles',
       title: 'Equipos', add: 'Añadir equipo', save: 'Guardar equipo', saved: 'Equipo guardado', needName: 'Ponle un nombre al equipo.',
       saveAdd: 'Guardar y añadir otro',
       emptyTitle: 'Aún no hay equipos', emptyText: 'Registra las máquinas que mantienes — una ficha cada una, con estado, plan de mantenimiento, manual e historial.',
@@ -662,6 +752,8 @@ export const STRINGS = {
     },
 
     pm: {
+      unknownShort: 'Sin registro',
+      unknown: 'Sin mantenimiento registrado',
       title: 'Mantenimiento preventivo', none: 'Sin plan definido.', noneShort: 'Ninguno',
       every: 'Cada', everyDays: 'Cada {n} días', lastDone: 'Última vez', markDone: 'Marcar MP hecho',
       doneToast: 'Mantenimiento preventivo registrado.', autoNote: 'Mantenimiento preventivo realizado.',
@@ -682,6 +774,9 @@ export const STRINGS = {
     },
 
     qr: {
+      libFailed: 'No se pudo cargar el generador de QR — conéctate a internet una vez y vuelve a intentarlo.',
+      unavailable: 'QR no disponible sin conexión',
+      building: 'Preparando etiquetas… {n}/{total}',
       title: 'Etiqueta (QR)',
       explain: 'Imprime este código, pégalo en la máquina y escanéalo para abrir su ficha al instante.',
       printLabel: 'Imprimir etiqueta', printAll: 'Imprimir etiquetas', labelsTitle: 'Etiquetas de equipos', noneToLabel: 'No hay equipos que etiquetar.',
@@ -695,13 +790,23 @@ export const STRINGS = {
       addNew: 'Añadir como equipo nuevo',
     },
     backup: {
+      skippedNewer: '{n} equipo era más reciente en este teléfono y se conservó.|{n} equipos eran más recientes en este teléfono y se conservaron.',
+      cancelled: 'Copia cancelada: no se guardó nada.',
+      failed: 'No se pudo crear la copia de seguridad. No se guardó nada.',
+      unknownDate: 'fecha desconocida',
+      confirmIntro: 'Esta copia es del {d}. Al restaurarla:',
+      confirmAdd: 'añadir {n} equipo nuevo|añadir {n} equipos nuevos',
+      confirmUpdate: 'sobrescribir {n} equipo que ya tienes|sobrescribir {n} equipos que ya tienes',
+      confirmOlder: 'omitir {n} equipo más reciente en este teléfono|omitir {n} equipos más recientes en este teléfono',
+      confirmLogs: 'fusionar {n} registro de servicio (se omiten duplicados)|fusionar {n} registros de servicio (se omiten duplicados)',
+      confirmGo: 'Restaurar',
       title: 'Copia de seguridad',
       intro: 'Tus equipos, fotos e historial solo existen en este teléfono. Haz una copia para no perder tu trabajo — y para cambiar de teléfono. Guarda el archivo en lugar seguro, o envíatelo por WhatsApp / correo.',
       now: 'Hacer copia ahora', share: 'Enviarme la copia', done: 'Copia guardada',
       lastAt: 'Última copia: {d}', never: 'Sin copia todavía.',
       restoreTitle: 'Restaurar', restoreText: 'Restaura desde un archivo de copia (se fusiona con lo que tienes).',
       restoreBtn: 'Elegir archivo', restored: '{n} equipo restaurado.|{n} equipos restaurados.',
-      reimport: 'Vuelve a importar tus {n} manual(es) — se guardan como tus propios PDF.',
+      reimport: 'Vuelve a importar tu {n} manual — se guarda como tu propio PDF.|Vuelve a importar tus {n} manuales — se guardan como tus propios PDF.',
       badFile: 'Ese archivo no es una copia válida de Taller.',
       tooNew: 'Esta copia es de una versión más nueva de Taller.',
       manualsNote: 'Los manuales (tus PDF) no se incluyen en la copia — reimpórtalos tras restaurar.',
@@ -709,6 +814,9 @@ export const STRINGS = {
     },
 
     common: {
+      confirm: 'Confirmar',
+      dismiss: 'Descartar',
+      storageFull: 'El almacenamiento del teléfono está lleno — libera espacio y vuelve a intentarlo.',
       cancel: 'Cancelar', save: 'Guardar', delete: 'Eliminar', close: 'Cerrar',
       back: 'Atrás', ok: 'OK', share: 'Compartir', copy: 'Copiar', copied: '¡Copiado!',
       loading: 'Cargando…', error: 'Algo salió mal', retry: 'Reintentar',
@@ -718,6 +826,7 @@ export const STRINGS = {
     },
 
     onboarding: {
+      more: 'Qué hace',
       welcome: 'Bienvenido a Taller',
       p1t: 'Todos tus manuales en el bolsillo',
       p1s: 'Importa los manuales de servicio PDF que ya tienes. Se quedan en tu teléfono.',
@@ -739,6 +848,10 @@ export const STRINGS = {
     },
 
     library: {
+      saving: 'Guardando en el teléfono…',
+      importCancelled: 'Importación cancelada: no se guardó nada.',
+      storageFull: 'Tu teléfono está lleno, así que el manual no se guardó. Libera espacio (fotos, vídeos u otro manual) e inténtalo de nuevo.',
+      engineOffline: 'La app necesita internet una sola vez para terminar de instalarse. Conéctate y añade el manual otra vez: este PDF está bien.',
       title: 'Manuales',
       searchAll: 'Buscar en todos los manuales… (avería, código de error)',
       addManual: 'Añadir manual (PDF)',
@@ -807,6 +920,15 @@ export const STRINGS = {
     },
 
     ask: {
+      extractBadge: 'Páginas exactas de tus manuales',
+      weakBadge: 'Coincidencia débil',
+      weakText: 'Nada en tus manuales coincide bien con esta pregunta. Las páginas de abajo son las más cercanas, pero pueden tratar de otra cosa: léelas antes de fiarte.',
+      insufficientBadge: 'No está en tus manuales',
+      truncated: 'Esta respuesta se cortó antes del final. Abre las páginas citadas: pueden faltar pasos.',
+      badCitation: 'Aviso: se cita la página {p}, pero no estaba entre las consultadas. No te fíes de esa cita.',
+      partialPages: 'Solo se leyó parte de cada página. Un procedimiento puede continuar más allá: revisa la página completa.',
+      relevance: 'Relevancia',
+      conf: { weak: 'baja', fair: 'media', good: 'alta' },
       title: 'Pregunta a tus manuales',
       hint: 'Describe la avería. La respuesta sale SOLO de los manuales que añadiste, citando la página.',
       placeholder: 'ej. El aspirador marca E3 y se para a los pocos segundos',
@@ -831,6 +953,7 @@ export const STRINGS = {
     },
 
     logbook: {
+      showMore: 'Mostrar {n} más',
       title: 'Historial de servicio',
       newEntry: 'Nueva entrada',
       logFault: 'Registrar avería',
@@ -881,6 +1004,10 @@ export const STRINGS = {
     },
 
     ocr: {
+      needInternet: 'El OCR necesita internet una sola vez para descargar su motor (~7 MB). Conéctate a internet e inténtalo de nuevo.',
+      engineReady: 'El motor de OCR ya está en el teléfono: funciona sin conexión.',
+      savedAsYouGo: 'Las páginas se guardan mientras se leen: puedes parar cuando quieras y continuar después.',
+      storageFull: 'Tu teléfono está lleno. Las páginas ya leídas están guardadas; libera espacio para terminar.',
       title: 'Hacer buscable el manual',
       intro: 'Este manual está escaneado (fotos de páginas). El OCR lee el texto para poder buscarlo. Todo ocurre en tu teléfono: unos 10–40 segundos por página. Mantén la app abierta, mejor enchufado.',
       firstTime: 'La primera vez necesita internet una sola vez (motor OCR, ~7 MB). Después funciona sin conexión.',
@@ -893,6 +1020,8 @@ export const STRINGS = {
     },
 
     more: {
+      offlinePartial: 'Parcialmente listo para uso sin conexión. Sigue conectado un momento para terminar la descarga.',
+      offlineFailed: 'No se pudo terminar la instalación para uso sin conexión. Vuelve a abrir la app con conexión.',
       title: 'Más',
       language: 'Idioma',
       theme: 'Tema', themeAuto: 'Auto', themeLight: 'Claro', themeDark: 'Oscuro',
@@ -928,15 +1057,19 @@ export const STRINGS = {
     time: { today: 'hoje', inDays: 'em {n} dias', daysAgo: 'há {n} dias' },
 
     home: {
+      noEquipmentTitle: 'Ainda não há equipamentos registados',
+      noEquipmentText: 'Os seus manuais estão prontos. Adicione os equipamentos que mantém para ver o que está parado e que manutenção está pendente.',
       title: 'Oficina', subtitle: 'Os seus equipamentos num relance',
       welcomeTitle: 'Bem-vindo à sua oficina', welcomeText: 'Adicione os equipamentos que mantém e os manuais que usa. Tudo fica neste telemóvel.',
       addEquipment: 'Adicionar equipamento', addManual: 'Adicionar um manual', tryDemo: 'Experimentar a demo',
       tileEquipment: 'Equipamentos', tileUptime: 'Disponibilidade', tileDown: 'Fora de serviço', tilePmDue: 'MP a fazer',
-      partsNeeded: '{n} peças necessárias — ver pedido', needsAttention: 'Requer atenção', allGood: 'Todos os equipamentos operacionais — nada pendente.',
+      partsNeeded: '{n} peça necessária — ver pedido|{n} peças necessárias — ver pedido', needsAttention: 'Requer atenção', allGood: 'Todos os equipamentos operacionais — nada pendente.',
       quickActions: 'Ações rápidas', recent: 'Atividade recente',
     },
 
     equipment: {
+      moreFields: 'Mais detalhes',
+      fewerFields: 'Menos detalhes',
       title: 'Equipamentos', add: 'Adicionar equipamento', save: 'Guardar equipamento', saved: 'Equipamento guardado', needName: 'Dê um nome ao equipamento.',
       saveAdd: 'Guardar e adicionar outro',
       emptyTitle: 'Ainda sem equipamentos', emptyText: 'Registe as máquinas que mantém — uma ficha cada uma, com estado, plano de manutenção, manual e histórico.',
@@ -968,6 +1101,8 @@ export const STRINGS = {
     },
 
     pm: {
+      unknownShort: 'Sem registo',
+      unknown: 'Sem manutenção registada',
       title: 'Manutenção preventiva', none: 'Sem plano definido.', noneShort: 'Nenhum',
       every: 'A cada', everyDays: 'A cada {n} dias', lastDone: 'Última vez', markDone: 'Marcar MP feita',
       doneToast: 'Manutenção preventiva registada.', autoNote: 'Manutenção preventiva efetuada.',
@@ -988,6 +1123,9 @@ export const STRINGS = {
     },
 
     qr: {
+      libFailed: 'Não foi possível carregar o gerador de QR — ligue-se à internet uma vez e tente novamente.',
+      unavailable: 'QR indisponível offline',
+      building: 'A preparar etiquetas… {n}/{total}',
       title: 'Etiqueta (QR)',
       explain: 'Imprima este código, cole-o na máquina e leia-o para abrir esta ficha de imediato.',
       printLabel: 'Imprimir etiqueta', printAll: 'Imprimir etiquetas', labelsTitle: 'Etiquetas de equipamento', noneToLabel: 'Sem equipamentos para etiquetar.',
@@ -1001,13 +1139,23 @@ export const STRINGS = {
       addNew: 'Adicionar como novo equipamento',
     },
     backup: {
+      skippedNewer: '{n} equipamento era mais recente neste telemóvel e foi mantido.|{n} equipamentos eram mais recentes neste telemóvel e foram mantidos.',
+      cancelled: 'Cópia cancelada — nada foi guardado.',
+      failed: 'Não foi possível criar a cópia de segurança. Nada foi guardado.',
+      unknownDate: 'data desconhecida',
+      confirmIntro: 'Esta cópia é de {d}. Ao restaurá-la:',
+      confirmAdd: 'adicionar {n} equipamento novo|adicionar {n} equipamentos novos',
+      confirmUpdate: 'substituir {n} equipamento que já tem|substituir {n} equipamentos que já tem',
+      confirmOlder: 'ignorar {n} equipamento mais recente neste telemóvel|ignorar {n} equipamentos mais recentes neste telemóvel',
+      confirmLogs: 'juntar {n} registo de serviço (duplicados são ignorados)|juntar {n} registos de serviço (duplicados são ignorados)',
+      confirmGo: 'Restaurar',
       title: 'Cópia de segurança',
       intro: 'Os seus equipamentos, fotos e histórico só existem neste telemóvel. Faça uma cópia para nunca perder o seu trabalho — e para mudar de telemóvel. Guarde o ficheiro em local seguro, ou envie-o para si por WhatsApp / e-mail.',
       now: 'Fazer cópia agora', share: 'Enviar cópia para mim', done: 'Cópia guardada',
       lastAt: 'Última cópia: {d}', never: 'Ainda sem cópia.',
       restoreTitle: 'Restaurar', restoreText: 'Restaurar a partir de um ficheiro de cópia (funde com o que já tem).',
       restoreBtn: 'Escolher ficheiro', restored: '{n} máquina restaurada.|{n} máquinas restauradas.',
-      reimport: 'Volte a importar os seus {n} manual(is) — ficam como os seus próprios PDF.',
+      reimport: 'Volte a importar o seu {n} manual — fica como o seu próprio PDF.|Volte a importar os seus {n} manuais — ficam como os seus próprios PDF.',
       badFile: 'Esse ficheiro não é uma cópia válida do Taller.',
       tooNew: 'Esta cópia é de uma versão mais recente do Taller.',
       manualsNote: 'Os manuais (os seus PDF) não estão na cópia — reimporte-os após restaurar.',
@@ -1015,6 +1163,9 @@ export const STRINGS = {
     },
 
     common: {
+      confirm: 'Confirmar',
+      dismiss: 'Dispensar',
+      storageFull: 'O armazenamento do telemóvel está cheio — liberte espaço e tente novamente.',
       cancel: 'Cancelar', save: 'Guardar', delete: 'Eliminar', close: 'Fechar',
       back: 'Voltar', ok: 'OK', share: 'Partilhar', copy: 'Copiar', copied: 'Copiado!',
       loading: 'A carregar…', error: 'Algo correu mal', retry: 'Tentar de novo',
@@ -1024,6 +1175,7 @@ export const STRINGS = {
     },
 
     onboarding: {
+      more: 'O que faz',
       welcome: 'Bem-vindo ao Taller',
       p1t: 'Todos os manuais no bolso',
       p1s: 'Importe os manuais de serviço PDF que já tem. Ficam no seu telemóvel.',
@@ -1045,6 +1197,10 @@ export const STRINGS = {
     },
 
     library: {
+      saving: 'A guardar no telemóvel…',
+      importCancelled: 'Importação cancelada — nada foi guardado.',
+      storageFull: 'O telemóvel está cheio, por isso o manual não foi guardado. Liberte espaço (fotos, vídeos ou outro manual) e tente de novo.',
+      engineOffline: 'A app precisa de internet uma só vez para terminar a instalação. Ligue-se e adicione o manual outra vez — este PDF está bom.',
       title: 'Manuais',
       searchAll: 'Procurar em todos os manuais… (avaria, código de erro)',
       addManual: 'Adicionar manual (PDF)',
@@ -1113,6 +1269,15 @@ export const STRINGS = {
     },
 
     ask: {
+      extractBadge: 'Páginas exactas dos seus manuais',
+      weakBadge: 'Correspondência fraca',
+      weakText: 'Nada nos seus manuais corresponde bem a esta pergunta. As páginas abaixo são as mais próximas, mas podem ser sobre outra coisa — leia-as antes de confiar.',
+      insufficientBadge: 'Não está nos seus manuais',
+      truncated: 'Esta resposta foi cortada antes do fim. Abra as páginas citadas — podem faltar passos.',
+      badCitation: 'Aviso: a página {p} foi citada mas não estava entre as consultadas. Não confie nessa citação.',
+      partialPages: 'Só foi lida parte de cada página. Um procedimento pode continuar para além disso — veja a página completa.',
+      relevance: 'Relevância',
+      conf: { weak: 'baixa', fair: 'média', good: 'alta' },
       title: 'Pergunte aos seus manuais',
       hint: 'Descreva a avaria. A resposta vem APENAS dos manuais que adicionou, citando a página.',
       placeholder: 'ex. O aspirador mostra E3 e para ao fim de alguns segundos',
@@ -1137,6 +1302,7 @@ export const STRINGS = {
     },
 
     logbook: {
+      showMore: 'Mostrar mais {n}',
       title: 'Histórico de serviço',
       newEntry: 'Nova entrada',
       logFault: 'Registar avaria',
@@ -1187,6 +1353,10 @@ export const STRINGS = {
     },
 
     ocr: {
+      needInternet: 'O OCR precisa de internet uma só vez para descarregar o motor (~7 MB). Ligue-se à internet e tente de novo.',
+      engineReady: 'O motor de OCR já está no telemóvel — funciona offline.',
+      savedAsYouGo: 'As páginas são guardadas à medida que são lidas — pode parar quando quiser e continuar mais tarde.',
+      storageFull: 'O telemóvel está cheio. As páginas já lidas estão guardadas; liberte espaço para terminar.',
       title: 'Tornar o manual pesquisável',
       intro: 'Este manual está digitalizado (fotos de páginas). O OCR lê o texto para permitir a pesquisa. Tudo acontece no seu telemóvel: cerca de 10 a 40 segundos por página. Mantenha a app aberta, de preferência ligada à corrente.',
       firstTime: 'A primeira vez precisa de internet uma só vez (motor de OCR, ~7 MB). Depois funciona offline.',
@@ -1199,6 +1369,8 @@ export const STRINGS = {
     },
 
     more: {
+      offlinePartial: 'Parcialmente pronto para uso offline. Fique ligado mais um momento para terminar a transferência.',
+      offlineFailed: 'Não foi possível concluir a instalação para uso offline. Reabra a app com ligação.',
       title: 'Mais',
       language: 'Idioma',
       theme: 'Tema', themeAuto: 'Auto', themeLight: 'Claro', themeDark: 'Escuro',
