@@ -20,8 +20,15 @@
  *
  * FIRST, on the Anthropic side — this is the only guard that cannot be bypassed:
  * A. console.anthropic.com/settings/workspaces → create a Workspace ("taller").
+ *    (The "Default" workspace cannot take custom limits — that is why a named
+ *    one is needed.)
  * B. Create the API key INSIDE that workspace (workspace-scoped, not
- *    organization-wide) and set the workspace's MONTHLY SPEND LIMIT (5-10 $).
+ *    organization-wide).
+ * C. Set the ORGANISATION spend limit first (Settings → Billing / Limits), then
+ *    the WORKSPACE one: Settings → Workspaces → click "taller" → "Limits" tab →
+ *    "Change Limit" → 5-10 $. A workspace limit can only be set LOWER than the
+ *    organisation limit, and defaults to it when unset — so the org number is
+ *    the real ceiling and must be set too.
  *    If the key ever leaks, the blast radius is that cap — not your account.
  *
  * THEN, on Cloudflare:
@@ -30,6 +37,8 @@
  * 3. "Edit code" → delete the sample → paste THIS ENTIRE FILE → Deploy
  * 4. Worker → Settings → Variables and Secrets → Add:
  *      Type: Secret · Name: ANTHROPIC_API_KEY · Value: the workspace key
+ *    (A Cloudflare Secrets Store binding of the same name also works — this
+ *    worker resolves either. The per-Worker Secret is simpler for one key.)
  *    NEVER put this key in js/config.js or anywhere in the repo — the repo is
  *    public and every file in it is served as a static asset.
  * 5. REQUIRED — per-IP daily limits. Without this the endpoint is unauthenticated
@@ -77,6 +86,29 @@ function memBump(key, limit) {
   return n <= limit;
 }
 
+// The API key can arrive two ways, and they are NOT interchangeable:
+//   - a classic per-Worker Secret  → env.ANTHROPIC_API_KEY is a plain string
+//   - a Secrets Store binding      → env.ANTHROPIC_API_KEY is an object whose
+//                                    value must be fetched with await .get()
+// Reading a Secrets Store binding as a string silently sends "[object Object]"
+// as the API key, which surfaces as an opaque 502 rather than "bad key".
+// Accept either, so neither choice can quietly break the deployment.
+async function resolveApiKey(env) {
+  const k = env && env.ANTHROPIC_API_KEY;
+  if (!k) return null;
+  if (typeof k === 'string') return k.trim() || null;
+  if (typeof k.get === 'function') {
+    try {
+      const v = await k.get();
+      return (typeof v === 'string' && v.trim()) ? v.trim() : null;
+    } catch (e) {
+      console.log('secrets store read failed', String(e).slice(0, 120));
+      return null;
+    }
+  }
+  return null;
+}
+
 function corsFor(request, env) {
   const allowed = String(env.ALLOWED_ORIGINS || '').split(',').map(s => s.trim()).filter(Boolean);
   const origin = request.headers.get('Origin') || '';
@@ -122,12 +154,21 @@ export default {
 
     const url = new URL(request.url);
     if (request.method === 'GET') {
-      return json({ ok: true, service: 'taller-ai', model: env.MODEL || MODEL }, 200, CORS);
+      // Report what is actually wired up, so a misconfiguration is visible from
+      // a browser instead of only surfacing as a failed question in the app.
+      const key = await resolveApiKey(env);
+      return json({
+        ok: true, service: 'taller-ai', model: env.MODEL || MODEL,
+        keyConfigured: !!key,
+        rateLimit: env.RATE_KV ? 'kv' : 'in-memory-only (bind RATE_KV)',
+        originLock: String(env.ALLOWED_ORIGINS || '').trim() ? 'on' : 'off',
+      }, 200, CORS);
     }
     if (request.method !== 'POST' || !url.pathname.endsWith('/ask')) {
       return json({ error: 'not found' }, 404, CORS);
     }
-    if (!env.ANTHROPIC_API_KEY) return json({ error: 'server not configured' }, 500, CORS);
+    const apiKey = await resolveApiKey(env);
+    if (!apiKey) return json({ error: 'server not configured' }, 500, CORS);
     if (!originAllowed(request, env)) return json({ error: 'origin not allowed' }, 403, CORS);
 
     // ---- validate input FIRST ----
@@ -240,7 +281,7 @@ export default {
       const res = await fetch('https://api.anthropic.com/v1/messages', {
         method: 'POST',
         headers: {
-          'x-api-key': env.ANTHROPIC_API_KEY,
+          'x-api-key': apiKey,
           'anthropic-version': '2023-06-01',
           'content-type': 'application/json',
         },
