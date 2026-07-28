@@ -8,10 +8,8 @@ export const CONFIG = {
   // Optional: URL of the AI answer service (Cloudflare Worker, see /worker).
   // Leave '' to disable online AI — the app still works fully offline
   // (search + best-matching pages + "copy prompt" for any external AI).
-  aiEndpoint: '',
-
-  // Public repository (shown in About). Update after publishing.
-  repoUrl: 'https://github.com/YOUR-USER/taller',
+aiEndpoint: 'https://taller-ai.resolutivesp.workers.dev',
+repoUrl: 'https://github.com/resolutivesp/taller',
 
   // Import guard: warn before importing PDFs bigger than this (MB).
   // Kept modest — a big scanned manual can exhaust RAM on a 2 GB phone.
