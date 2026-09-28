@@ -73,10 +73,10 @@ export async function renderFeedback(container) {
         '?subject=' + encodeURIComponent('Taller beta feedback') +
         '&body=' + encodeURIComponent(body);
       window.location.href = url;
-      toast(t('feedback.thanks'), 4000);
+      toast(t('feedback.thanks'), 4000, null, 'ok');
     } else if (how === 'share') {
       const shared = await shareText(body + '\n\n→ ' + CONFIG.feedbackEmail, 'Taller beta feedback');
-      if (shared) toast(t('feedback.thanks'), 4000);
+      if (shared) toast(t('feedback.thanks'), 4000, null, 'ok');
       else if (await copyText(body)) toast(t('feedback.thanks') + ' — ' + t('common.copied'), 4000);
     } else {
       if (await copyText(body)) toast(t('feedback.thanks') + ' — ' + t('common.copied'), 4000);

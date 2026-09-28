@@ -3,16 +3,36 @@
 export const STRINGS = {
   en: {
     appName: 'Taller',
-    tagline: 'Your service manuals. Searchable. Offline.',
+    tagline: 'Equipment, maintenance and service manuals — offline.',
 
     nav: { home: 'Home', equipment: 'Equipment', library: 'Manuals', ask: 'Ask', more: 'More' },
 
     time: { today: 'today', inDays: 'in {n} days', daysAgo: '{n} days ago' },
 
     home: {
+      pillAwaiting: '{n} awaiting parts',
+      demoTitle: 'You’re exploring a demo workshop',
+      demoText: 'Open {name} to see a full record, or ask its manual a question. When you’re ready, remove the demo and add your own machines.',
+      demoOpen: 'See the record',
+      demoRemove: 'Remove demo',
+      demoRemoveConfirm: 'Remove the demo machine, its history and the demo manual? Your own data is not touched.',
+      demoRemoved: 'Demo removed — your workshop is ready.',
+      healthLine: '{w} of {n} machine working|{w} of {n} machines working',
+      ringLabel: 'working',
+      allRetired: 'All machines are retired.',
+      pillDown: '{n} out of service',
+      pillPm: '{n} PM due',
+      pillParts: '{n} part to order|{n} parts to order',
+      pillClear: 'All clear',
+      optEquipment: 'Register a machine in under a minute',
+      optManual: 'Import a PDF you already have',
+      optDemo: 'See everything working with sample data',
+      optRestore: 'Moving from another phone?',
+      optAsk: 'Describe a fault, get the right page',
+      optSearch: 'Search all your manuals offline',
       noEquipmentTitle: 'No machines registered yet',
       noEquipmentText: 'Your manuals are ready. Add the machines you look after to see what is down and what maintenance is due.',
-      title: 'Workshop', subtitle: 'Your equipment at a glance',
+      title: 'Your workshop', subtitle: 'Your equipment at a glance',
       welcomeTitle: 'Welcome to your workshop', welcomeText: 'Add the equipment you look after and the service manuals you use. Everything stays on this phone.',
       addEquipment: 'Add equipment', addManual: 'Add a manual', tryDemo: 'Try the demo',
       tileEquipment: 'Equipment', tileUptime: 'Uptime', tileDown: 'Out of service', tilePmDue: 'PM due',
@@ -21,6 +41,7 @@ export const STRINGS = {
     },
 
     equipment: {
+      changePhoto: 'Change photo',
       moreFields: 'More details',
       fewerFields: 'Fewer details',
       title: 'Equipment', add: 'Add equipment', save: 'Save equipment', saved: 'Equipment saved', needName: 'Give the equipment a name.',
@@ -129,16 +150,16 @@ export const STRINGS = {
 
     onboarding: {
       more: 'What it does',
-      welcome: 'Welcome to Taller',
-      p1t: 'Every manual in your pocket',
-      p1s: 'Import the PDF service manuals you already have. They stay on your phone.',
-      p2t: 'Find the fix in seconds',
-      p2s: 'Search faults, error codes or parts — offline — and jump to the exact page.',
+      welcome: 'Your workshop in your pocket',
+      p1t: 'Know what’s down and what’s due',
+      p1s: 'Register each machine in under a minute: status, maintenance schedule, spare parts and service history.',
+      p2t: 'Find the fix in your manuals',
+      p2s: 'Search your PDF service manuals offline and jump to the exact page. Optional AI answers cite the page.',
       p3t: 'Free forever',
-      p3s: 'Open source. No accounts, no ads, no tracking.',
+      p3s: 'Open source. No accounts, no ads, no tracking. Your data stays on your phone.',
       chooseLang: 'Language',
-      start: 'Add my first manual',
-      tryDemo: 'Try the demo manual',
+      start: 'Start from scratch',
+      tryDemo: 'Explore the demo workshop',
       restore: 'Restore from a backup',
     },
 
@@ -150,6 +171,9 @@ export const STRINGS = {
     },
 
     library: {
+      yours: 'Your manuals',
+      addShort: 'Add PDF',
+      moreOptions: 'More options',
       saving: 'Saving to this phone…',
       importCancelled: 'Import cancelled — nothing was saved.',
       storageFull: 'Your phone is full, so the manual was not saved. Free some space (photos, videos or another manual) and try again.',
@@ -189,6 +213,7 @@ export const STRINGS = {
     },
 
     find: {
+      ctaShort: 'Find online',
       title: 'Find a manual',
       intro: 'Search these free public libraries for a service manual, then import the PDF here.',
       forDevice: 'What are you looking for?',
@@ -322,6 +347,7 @@ export const STRINGS = {
     },
 
     more: {
+      brandLine: 'Free & open source · Works offline',
       offlinePartial: 'Partly ready for offline use. Stay connected a moment longer to finish downloading.',
       offlineFailed: 'Could not finish setting up for offline use. Reopen the app while connected.',
       title: 'More',
@@ -352,16 +378,36 @@ export const STRINGS = {
 
   fr: {
     appName: 'Taller',
-    tagline: 'Vos manuels de service. Consultables. Hors ligne.',
+    tagline: 'Équipements, maintenance et manuels de service — hors ligne.',
 
     nav: { home: 'Accueil', equipment: 'Équipements', library: 'Manuels', ask: 'Assistant', more: 'Plus' },
 
     time: { today: "aujourd'hui", inDays: 'dans {n} jours', daysAgo: 'il y a {n} jours' },
 
     home: {
+      pillAwaiting: '{n} en attente de pièces',
+      demoTitle: 'Vous explorez un atelier de démo',
+      demoText: 'Ouvrez {name} pour voir une fiche complète, ou posez une question à son manuel. Quand vous êtes prêt, retirez la démo et ajoutez vos appareils.',
+      demoOpen: 'Voir la fiche',
+      demoRemove: 'Retirer la démo',
+      demoRemoveConfirm: 'Retirer l’appareil de démo, son historique et le manuel de démo ? Vos propres données ne sont pas touchées.',
+      demoRemoved: 'Démo retirée — votre atelier est prêt.',
+      healthLine: '{w} sur {n} appareil en service|{w} sur {n} appareils en service',
+      ringLabel: 'en service',
+      allRetired: 'Tous les appareils sont réformés.',
+      pillDown: '{n} hors service',
+      pillPm: '{n} MP à faire',
+      pillParts: '{n} pièce à commander|{n} pièces à commander',
+      pillClear: 'Tout est en ordre',
+      optEquipment: 'Enregistrez un appareil en moins d’une minute',
+      optManual: 'Importez un PDF que vous avez déjà',
+      optDemo: 'Tout voir en action avec des données d’exemple',
+      optRestore: 'Vous changez de téléphone ?',
+      optAsk: 'Décrivez une panne, trouvez la bonne page',
+      optSearch: 'Cherchez dans tous vos manuels hors ligne',
       noEquipmentTitle: 'Aucun équipement enregistré',
       noEquipmentText: 'Vos manuels sont prêts. Ajoutez les équipements dont vous vous occupez pour voir ce qui est en panne et ce qui est à entretenir.',
-      title: 'Atelier', subtitle: "Vos équipements en un coup d'œil",
+      title: 'Votre atelier', subtitle: "Vos équipements en un coup d'œil",
       welcomeTitle: 'Bienvenue dans votre atelier', welcomeText: 'Ajoutez les équipements dont vous vous occupez et les manuels que vous utilisez. Tout reste sur ce téléphone.',
       addEquipment: 'Ajouter un équipement', addManual: 'Ajouter un manuel', tryDemo: 'Essayer la démo',
       tileEquipment: 'Équipements', tileUptime: 'Disponibilité', tileDown: 'Hors service', tilePmDue: 'MP à faire',
@@ -370,6 +416,7 @@ export const STRINGS = {
     },
 
     equipment: {
+      changePhoto: 'Changer la photo',
       moreFields: 'Plus de détails',
       fewerFields: 'Moins de détails',
       title: 'Équipements', add: 'Ajouter un équipement', save: 'Enregistrer', saved: 'Équipement enregistré', needName: "Donnez un nom à l'équipement.",
@@ -478,16 +525,16 @@ export const STRINGS = {
 
     onboarding: {
       more: 'Ce que ça fait',
-      welcome: 'Bienvenue sur Taller',
-      p1t: 'Tous vos manuels en poche',
-      p1s: 'Importez les manuels de service PDF que vous avez déjà. Ils restent sur votre téléphone.',
-      p2t: 'La panne trouvée en secondes',
-      p2s: 'Cherchez pannes, codes erreur ou pièces — hors ligne — et ouvrez la page exacte.',
+      welcome: 'Votre atelier dans la poche',
+      p1t: 'Sachez ce qui est en panne et ce qui est à faire',
+      p1s: 'Enregistrez chaque appareil en moins d’une minute : statut, maintenance préventive, pièces et historique.',
+      p2t: 'Trouvez la solution dans vos manuels',
+      p2s: 'Cherchez dans vos manuels PDF hors ligne et allez droit à la bonne page. L’IA optionnelle cite la page.',
       p3t: 'Gratuit pour toujours',
-      p3s: 'Open source. Sans compte, sans pub, sans traçage.',
+      p3s: 'Open source. Sans compte, sans pub, sans pistage. Vos données restent sur votre téléphone.',
       chooseLang: 'Langue',
-      start: 'Ajouter mon premier manuel',
-      tryDemo: 'Essayer le manuel de démo',
+      start: 'Commencer de zéro',
+      tryDemo: 'Explorer l’atelier de démo',
       restore: 'Restaurer depuis une sauvegarde',
     },
 
@@ -499,6 +546,9 @@ export const STRINGS = {
     },
 
     library: {
+      yours: 'Vos manuels',
+      addShort: 'Ajouter un PDF',
+      moreOptions: 'Plus d’options',
       saving: 'Enregistrement sur le téléphone…',
       importCancelled: 'Import annulé — rien n\'a été enregistré.',
       storageFull: 'Le téléphone est plein : le manuel n\'a pas été enregistré. Libérez de l\'espace (photos, vidéos ou un autre manuel) puis réessayez.',
@@ -538,6 +588,7 @@ export const STRINGS = {
     },
 
     find: {
+      ctaShort: 'Chercher en ligne',
       title: 'Trouver un manuel',
       intro: 'Cherchez un manuel de service dans ces bibliothèques publiques gratuites, puis importez le PDF ici.',
       forDevice: 'Que cherchez-vous ?',
@@ -671,6 +722,7 @@ export const STRINGS = {
     },
 
     more: {
+      brandLine: 'Gratuit et open source · Fonctionne hors ligne',
       offlinePartial: 'Partiellement prêt pour le hors ligne. Restez connecté un instant pour terminer le téléchargement.',
       offlineFailed: 'Impossible de terminer l\'installation hors ligne. Rouvrez l\'appli en étant connecté.',
       title: 'Plus',
@@ -701,16 +753,36 @@ export const STRINGS = {
 
   es: {
     appName: 'Taller',
-    tagline: 'Tus manuales de servicio. Buscables. Sin internet.',
+    tagline: 'Equipos, mantenimiento y manuales de servicio, sin conexión.',
 
     nav: { home: 'Inicio', equipment: 'Equipos', library: 'Manuales', ask: 'Asistente', more: 'Más' },
 
     time: { today: 'hoy', inDays: 'en {n} días', daysAgo: 'hace {n} días' },
 
     home: {
+      pillAwaiting: '{n} esperando repuestos',
+      demoTitle: 'Estás explorando un taller de demo',
+      demoText: 'Abre {name} para ver una ficha completa o pregunta algo a su manual. Cuando quieras, quita la demo y añade tus equipos.',
+      demoOpen: 'Ver la ficha',
+      demoRemove: 'Quitar la demo',
+      demoRemoveConfirm: '¿Quitar el equipo de demo, su historial y el manual de demo? Tus datos no se tocan.',
+      demoRemoved: 'Demo quitada: tu taller está listo.',
+      healthLine: '{w} de {n} equipo operativo|{w} de {n} equipos operativos',
+      ringLabel: 'operativo',
+      allRetired: 'Todos los equipos están retirados.',
+      pillDown: '{n} fuera de servicio',
+      pillPm: '{n} MP pendiente|{n} MP pendientes',
+      pillParts: '{n} repuesto por pedir|{n} repuestos por pedir',
+      pillClear: 'Todo en orden',
+      optEquipment: 'Registra un equipo en menos de un minuto',
+      optManual: 'Importa un PDF que ya tengas',
+      optDemo: 'Míralo todo funcionando con datos de ejemplo',
+      optRestore: '¿Vienes de otro teléfono?',
+      optAsk: 'Describe una avería y encuentra la página',
+      optSearch: 'Busca en todos tus manuales sin conexión',
       noEquipmentTitle: 'Aún no hay equipos registrados',
       noEquipmentText: 'Tus manuales están listos. Añade los equipos que mantienes para ver qué está parado y qué mantenimiento toca.',
-      title: 'Taller', subtitle: 'Tus equipos de un vistazo',
+      title: 'Tu taller', subtitle: 'Tus equipos de un vistazo',
       welcomeTitle: 'Bienvenido a tu taller', welcomeText: 'Añade los equipos que mantienes y los manuales que usas. Todo se queda en este teléfono.',
       addEquipment: 'Añadir equipo', addManual: 'Añadir un manual', tryDemo: 'Probar la demo',
       tileEquipment: 'Equipos', tileUptime: 'Disponibilidad', tileDown: 'Fuera de servicio', tilePmDue: 'MP pendiente',
@@ -719,6 +791,7 @@ export const STRINGS = {
     },
 
     equipment: {
+      changePhoto: 'Cambiar foto',
       moreFields: 'Más detalles',
       fewerFields: 'Menos detalles',
       title: 'Equipos', add: 'Añadir equipo', save: 'Guardar equipo', saved: 'Equipo guardado', needName: 'Ponle un nombre al equipo.',
@@ -827,16 +900,16 @@ export const STRINGS = {
 
     onboarding: {
       more: 'Qué hace',
-      welcome: 'Bienvenido a Taller',
-      p1t: 'Todos tus manuales en el bolsillo',
-      p1s: 'Importa los manuales de servicio PDF que ya tienes. Se quedan en tu teléfono.',
-      p2t: 'Encuentra la solución en segundos',
-      p2s: 'Busca averías, códigos de error o piezas — sin internet — y salta a la página exacta.',
+      welcome: 'Tu taller en el bolsillo',
+      p1t: 'Sabe qué está averiado y qué toca revisar',
+      p1s: 'Registra cada equipo en menos de un minuto: estado, mantenimiento preventivo, repuestos e historial.',
+      p2t: 'Encuentra la solución en tus manuales',
+      p2s: 'Busca en tus manuales PDF sin conexión y salta a la página exacta. La IA opcional cita la página.',
       p3t: 'Gratis para siempre',
-      p3s: 'Open source. Sin cuentas, sin anuncios, sin rastreo.',
+      p3s: 'Código abierto. Sin cuentas, sin anuncios, sin rastreo. Tus datos se quedan en tu teléfono.',
       chooseLang: 'Idioma',
-      start: 'Añadir mi primer manual',
-      tryDemo: 'Probar el manual de demo',
+      start: 'Empezar desde cero',
+      tryDemo: 'Explorar el taller de demo',
       restore: 'Restaurar desde una copia',
     },
 
@@ -848,6 +921,9 @@ export const STRINGS = {
     },
 
     library: {
+      yours: 'Tus manuales',
+      addShort: 'Añadir PDF',
+      moreOptions: 'Más opciones',
       saving: 'Guardando en el teléfono…',
       importCancelled: 'Importación cancelada: no se guardó nada.',
       storageFull: 'Tu teléfono está lleno, así que el manual no se guardó. Libera espacio (fotos, vídeos u otro manual) e inténtalo de nuevo.',
@@ -887,6 +963,7 @@ export const STRINGS = {
     },
 
     find: {
+      ctaShort: 'Buscar en línea',
       title: 'Buscar un manual',
       intro: 'Busca un manual de servicio en estas bibliotecas públicas gratuitas y luego importa el PDF aquí.',
       forDevice: '¿Qué estás buscando?',
@@ -1020,6 +1097,7 @@ export const STRINGS = {
     },
 
     more: {
+      brandLine: 'Gratis y de código abierto · Funciona sin conexión',
       offlinePartial: 'Parcialmente listo para uso sin conexión. Sigue conectado un momento para terminar la descarga.',
       offlineFailed: 'No se pudo terminar la instalación para uso sin conexión. Vuelve a abrir la app con conexión.',
       title: 'Más',
@@ -1050,16 +1128,36 @@ export const STRINGS = {
 
   pt: {
     appName: 'Taller',
-    tagline: 'Os seus manuais de serviço. Pesquisáveis. Offline.',
+    tagline: 'Equipamentos, manutenção e manuais de serviço — offline.',
 
     nav: { home: 'Início', equipment: 'Equipamentos', library: 'Manuais', ask: 'Assistente', more: 'Mais' },
 
     time: { today: 'hoje', inDays: 'em {n} dias', daysAgo: 'há {n} dias' },
 
     home: {
+      pillAwaiting: '{n} a aguardar peças',
+      demoTitle: 'Está a explorar uma oficina de demonstração',
+      demoText: 'Abra {name} para ver uma ficha completa ou faça uma pergunta ao manual. Quando quiser, remova a demonstração e adicione os seus equipamentos.',
+      demoOpen: 'Ver a ficha',
+      demoRemove: 'Remover demonstração',
+      demoRemoveConfirm: 'Remover o equipamento de demonstração, o histórico e o manual de demonstração? Os seus dados não são afetados.',
+      demoRemoved: 'Demonstração removida — a sua oficina está pronta.',
+      healthLine: '{w} de {n} equipamento operacional|{w} de {n} equipamentos operacionais',
+      ringLabel: 'operacional',
+      allRetired: 'Todos os equipamentos estão abatidos.',
+      pillDown: '{n} fora de serviço',
+      pillPm: '{n} MP a fazer',
+      pillParts: '{n} peça a encomendar|{n} peças a encomendar',
+      pillClear: 'Tudo em ordem',
+      optEquipment: 'Registe um equipamento em menos de um minuto',
+      optManual: 'Importe um PDF que já tenha',
+      optDemo: 'Veja tudo a funcionar com dados de exemplo',
+      optRestore: 'Vem de outro telemóvel?',
+      optAsk: 'Descreva uma avaria e encontre a página',
+      optSearch: 'Pesquise em todos os seus manuais offline',
       noEquipmentTitle: 'Ainda não há equipamentos registados',
       noEquipmentText: 'Os seus manuais estão prontos. Adicione os equipamentos que mantém para ver o que está parado e que manutenção está pendente.',
-      title: 'Oficina', subtitle: 'Os seus equipamentos num relance',
+      title: 'A sua oficina', subtitle: 'Os seus equipamentos num relance',
       welcomeTitle: 'Bem-vindo à sua oficina', welcomeText: 'Adicione os equipamentos que mantém e os manuais que usa. Tudo fica neste telemóvel.',
       addEquipment: 'Adicionar equipamento', addManual: 'Adicionar um manual', tryDemo: 'Experimentar a demo',
       tileEquipment: 'Equipamentos', tileUptime: 'Disponibilidade', tileDown: 'Fora de serviço', tilePmDue: 'MP a fazer',
@@ -1068,6 +1166,7 @@ export const STRINGS = {
     },
 
     equipment: {
+      changePhoto: 'Mudar fotografia',
       moreFields: 'Mais detalhes',
       fewerFields: 'Menos detalhes',
       title: 'Equipamentos', add: 'Adicionar equipamento', save: 'Guardar equipamento', saved: 'Equipamento guardado', needName: 'Dê um nome ao equipamento.',
@@ -1176,16 +1275,16 @@ export const STRINGS = {
 
     onboarding: {
       more: 'O que faz',
-      welcome: 'Bem-vindo ao Taller',
-      p1t: 'Todos os manuais no bolso',
-      p1s: 'Importe os manuais de serviço PDF que já tem. Ficam no seu telemóvel.',
-      p2t: 'Encontre a solução em segundos',
-      p2s: 'Procure avarias, códigos de erro ou peças — offline — e salte para a página exata.',
+      welcome: 'A sua oficina no bolso',
+      p1t: 'Saiba o que está avariado e o que está pendente',
+      p1s: 'Registe cada equipamento em menos de um minuto: estado, manutenção preventiva, peças e histórico.',
+      p2t: 'Encontre a solução nos seus manuais',
+      p2s: 'Pesquise nos seus manuais PDF offline e vá direto à página certa. A IA opcional cita a página.',
       p3t: 'Grátis para sempre',
-      p3s: 'Código aberto. Sem contas, sem anúncios, sem rastreio.',
+      p3s: 'Código aberto. Sem contas, sem anúncios, sem rastreio. Os seus dados ficam no seu telemóvel.',
       chooseLang: 'Idioma',
-      start: 'Adicionar o meu primeiro manual',
-      tryDemo: 'Experimentar o manual de demo',
+      start: 'Começar do zero',
+      tryDemo: 'Explorar a oficina de demonstração',
       restore: 'Restaurar de uma cópia',
     },
 
@@ -1197,6 +1296,9 @@ export const STRINGS = {
     },
 
     library: {
+      yours: 'Os seus manuais',
+      addShort: 'Adicionar PDF',
+      moreOptions: 'Mais opções',
       saving: 'A guardar no telemóvel…',
       importCancelled: 'Importação cancelada — nada foi guardado.',
       storageFull: 'O telemóvel está cheio, por isso o manual não foi guardado. Liberte espaço (fotos, vídeos ou outro manual) e tente de novo.',
@@ -1236,6 +1338,7 @@ export const STRINGS = {
     },
 
     find: {
+      ctaShort: 'Procurar online',
       title: 'Encontrar um manual',
       intro: 'Procure um manual de serviço nestas bibliotecas públicas gratuitas e depois importe o PDF aqui.',
       forDevice: 'O que procura?',
@@ -1369,6 +1472,7 @@ export const STRINGS = {
     },
 
     more: {
+      brandLine: 'Grátis e de código aberto · Funciona offline',
       offlinePartial: 'Parcialmente pronto para uso offline. Fique ligado mais um momento para terminar a transferência.',
       offlineFailed: 'Não foi possível concluir a instalação para uso offline. Reabra a app com ligação.',
       title: 'Mais',

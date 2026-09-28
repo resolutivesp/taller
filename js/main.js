@@ -2,14 +2,15 @@
 
 import { CONFIG } from './config.js';
 import { db } from './db.js';
-import { el, clear, t, getLang, setLang, toast, confirmModal, fmtBytes, shareApp } from './ui.js';
+import { el, clear, t, getLang, setLang, toast, confirmModal, confirmAsync, fmtBytes, shareApp } from './ui.js';
 import { icon } from './icons.js';
+import { art } from './art.js';
 import { renderLibrary, importDemo } from './library.js';
 import { renderAsk, aiEndpoint } from './ask.js';
 import { renderLog } from './logbook.js';
 import { renderFeedback } from './feedback.js';
 import { renderReader, cleanupReader } from './reader.js';
-import { renderHome } from './home.js';
+import { renderHome, removeDemo } from './home.js';
 import { renderEquipment, renderEquipmentDetail } from './equipment.js';
 import { renderReports } from './reports.js';
 import { renderBackup } from './backup.js';
@@ -56,8 +57,14 @@ async function render() {
   document.querySelectorAll('.tab').forEach(b => {
     b.classList.toggle('active', b.dataset.name === name || tabFor[name] === b.dataset.name);
   });
-  const immersive = name === 'reader' || (name === 'equipment' && segs[1]);
+  // MUST be a real boolean. `name === 'equipment' && segs[1]` evaluates to
+  // undefined on the equipment LIST, and classList.toggle(token, undefined) is
+  // a plain toggle (WebIDL treats an undefined optional argument as absent):
+  // tapping the Equipment tab from Home ADDED reader-mode, hiding the app bar
+  // and tab bar and freezing the list in an unscrollable, overflowing column.
+  const immersive = name === 'reader' || (name === 'equipment' && !!segs[1]);
   document.body.classList.toggle('reader-mode', immersive);
+  document.body.classList.toggle('pdf-mode', name === 'reader');
 
   view.scrollTop = 0;
   view.classList.remove('view-enter');
@@ -92,13 +99,33 @@ function renderMore(container) {
   container.append(wrap);
 
   wrap.append(el('h2', { class: 'view-title' }, t('more.title')));
+  wrap.append(el('div', { class: 'brand-card' },
+    el('img', { src: 'icons/icon-192.png', alt: '' }),
+    el('div', {},
+      el('b', {}, 'Taller'),
+      el('span', {}, t('more.brandLine')),
+      el('span', {}, t('more.version') + ' ' + CONFIG.version),
+    ),
+  ));
 
   // Tools menu
-  wrap.append(el('div', { class: 'menu-list' },
+  const menu = el('div', { class: 'menu-list' },
     menuItem('activity', t('reports.title'), () => navigate('#/reports')),
     menuItem('clipboard-list', t('logbook.title'), () => navigate('#/log')),
     menuItem('shield-check', t('backup.title'), () => navigate('#/backup')),
-  ));
+  );
+  wrap.append(menu);
+  // Always a way out of the sample data while any of it is left, even after
+  // the Home guide was dismissed or real machines were added next to it.
+  Promise.all([db.listEquipment(), db.listManuals()]).then(([eqs, mans]) => {
+    if (!eqs.some(e => e.demo) && !mans.some(m => m.demoLang)) return;
+    menu.append(menuItem('trash-2', t('home.demoRemove'), async () => {
+      if (!(await confirmAsync(t('home.demoRemoveConfirm'), t('home.demoRemove')))) return;
+      await removeDemo();
+      toast(t('home.demoRemoved'), 3200, null, 'ok');
+      renderMore(container);
+    }));
+  }).catch(() => {});
 
   // Feedback CTA + share
   wrap.append(
@@ -203,61 +230,58 @@ function menuItem(ico, label, onclick) {
 }
 
 // ---------- onboarding ----------
-async function maybeOnboard() {
+async function maybeOnboard(opts = {}) {
   const done = await db.kvGet('onboarded');
   if (done) return;
   const overlay = el('div', { class: 'onboard' });
 
-  const langRow = el('div', { class: 'chip-row center' });
-  for (const [code, label] of [['en', 'English'], ['fr', 'Français'], ['es', 'Español'], ['pt', 'Português']]) {
-    langRow.append(el('button', {
-      class: 'chip' + (getLang() === code ? ' active' : ''),
-      onclick: () => { setLang(code); applyLangDom(); overlay.remove(); maybeOnboard(); },
-    }, label));
-  }
+  // Compact language picker in the hero. The browser language is already
+  // applied on first load, so this is a correction, not a first question.
+  const langSel = el('select', { class: 'ob-lang', 'aria-label': t('onboarding.chooseLang') },
+    ...[['en', 'English'], ['fr', 'Français'], ['es', 'Español'], ['pt', 'Português']]
+      .map(([code, label]) => el('option', { value: code }, label)));
+  langSel.value = getLang();
+  langSel.addEventListener('change', () => {
+    setLang(langSel.value); applyLangDom(); overlay.remove(); maybeOnboard({ focusLang: true }); render();
+  });
 
   const point = (ico, tKey, sKey) => el('div', { class: 'onboard-point' },
     el('div', { class: 'pt-ico' }, icon(ico, 22)),
     el('div', {}, el('b', {}, t(tKey)), el('p', {}, t(sKey))),
   );
 
-  // ORDER MATTERS. Measured on a 360x640 phone, the old layout put ~950px of
-  // hero + three marketing bullets + the language row ABOVE the first button,
-  // so a technician opening the link from WhatsApp saw a logo, a headline and
-  // no action at all — the very first moment of the product, and it required
-  // blind scrolling. Language row and CTAs now come first, the CTA block is
-  // sticky, and the explanatory points sit below where they belong.
-  //
-  // "Try the demo" is now the PRIMARY action. More than half of technicians in
-  // these hospitals have no service manual PDF at all, so making "Add my first
-  // manual" the primary CTA pointed the majority straight at an OS file picker
-  // and a dead end. The demo shows the whole product working in 3 seconds.
+  // "Explore the demo" is the PRIMARY action and the first button in the DOM:
+  // more than half of technicians in these hospitals have no service-manual
+  // PDF at all, and the demo shows the whole product working in 3 seconds.
+  // The CTA block is sticky, so it is on screen on a 360x640 phone without
+  // scrolling, whatever the language.
   const finish = async (fn) => { await db.kvSet('onboarded', 1); overlay.remove(); fn(); };
 
   overlay.append(
     el('div', { class: 'onboard-box' },
       el('div', { class: 'onboard-hero' },
-        el('img', { class: 'onboard-logo', src: 'icons/icon-192.png', alt: 'Taller' }),
+        el('div', { class: 'ob-top' },
+          el('span', { class: 'ob-brand' }, el('img', { src: 'icons/icon-192.png', alt: '' }), 'Taller'),
+          langSel,
+        ),
+        el('div', { class: 'onboard-art' }, art('workshop-brand')),
         el('h1', {}, t('onboarding.welcome')),
         el('p', { class: 'tagline' }, t('tagline')),
       ),
       el('div', { class: 'onboard-body' },
-        el('p', { class: 'lbl center' }, t('onboarding.chooseLang')),
-        langRow,
+        point('heart-pulse', 'onboarding.p1t', 'onboarding.p1s'),
+        point('file-search', 'onboarding.p2t', 'onboarding.p2s'),
+        point('heart-handshake', 'onboarding.p3t', 'onboarding.p3s'),
         el('div', { class: 'onboard-cta' },
           el('button', {
             class: 'btn btn-primary btn-block btn-big',
             onclick: () => finish(() => importDemo()),
           }, icon('rocket', 20), t('onboarding.tryDemo')),
           el('button', {
-            class: 'btn btn-secondary btn-block', style: 'margin-top:9px',
-            onclick: () => finish(() => navigate('#/library')),
+            class: 'btn btn-secondary btn-block',
+            onclick: () => finish(() => navigate('#/')),
           }, icon('plus', 19), t('onboarding.start')),
         ),
-        el('div', { class: 'onboard-scroll-cue' }, icon('chevron-down', 15), t('onboarding.more')),
-        point('book-open', 'onboarding.p1t', 'onboarding.p1s'),
-        point('file-search', 'onboarding.p2t', 'onboarding.p2s'),
-        point('heart-handshake', 'onboarding.p3t', 'onboarding.p3s'),
         el('button', {
           class: 'btn btn-ghost-link',
           onclick: () => finish(() => navigate('#/backup')),
@@ -266,6 +290,9 @@ async function maybeOnboard() {
     ),
   );
   document.getElementById('app').append(overlay);
+  // After a language change the old select is gone: put focus back on the new
+  // one instead of dropping keyboard and screen-reader users on <body>.
+  if (opts.focusLang) { try { langSel.focus({ preventScroll: true }); } catch (e) { /* ignore */ } }
 }
 
 // ---------- desktop brand panel (forum visitors on PC) ----------
@@ -289,7 +316,8 @@ function renderSidebrand() {
           el('p', {}, t('tagline')),
         ),
       ),
-      point('book-open', 'onboarding.p1t', 'onboarding.p1s'),
+      el('p', { class: 'brand-lead' }, t('onboarding.welcome')),
+      point('heart-pulse', 'onboarding.p1t', 'onboarding.p1s'),
       point('file-search', 'onboarding.p2t', 'onboarding.p2s'),
       point('heart-handshake', 'onboarding.p3t', 'onboarding.p3s'),
       el('div', { class: 'qr-card' },
@@ -334,7 +362,7 @@ function applyTheme() {
   const dark = v === 'dark' || (v === 'auto' && matchMedia('(prefers-color-scheme: dark)').matches);
   document.documentElement.dataset.theme = dark ? 'dark' : 'light';
   const meta = document.querySelector('meta[name="theme-color"]');
-  if (meta) meta.content = dark ? '#0a1120' : '#0e7c72';
+  if (meta) meta.content = dark ? '#0d5e57' : '#0c7f73';
 }
 
 function applyLangDom() {
@@ -343,7 +371,7 @@ function applyLangDom() {
     const tab = TABS.find(x => x.name === b.dataset.name);
     if (tab) b.querySelector('.tab-label').textContent = t(tab.labelKey);
   });
-  document.title = 'Taller — ' + t('tagline');
+  document.title = 'Taller · ' + t('tagline');
   // These two were set once at boot, so switching language left the app bar in
   // the old one.
   const scanBtn = document.querySelector('#appbar .bar-btn[data-role="scan"]');

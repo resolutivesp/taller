@@ -1,6 +1,6 @@
 // Taller — configuration. Edit these values before/after deploying.
 export const CONFIG = {
-  version: '0.6-beta',
+  version: '0.7-beta',
 
   // Where in-app feedback is sent (mailto). Change to your address.
   feedbackEmail: 'resolutivesp@gmail.com',

@@ -96,7 +96,7 @@ export async function doBackup({ share = false } = {}) {
       if (navigator.canShare({ files: [file] })) {
         await navigator.share({ files: [file], title: 'Taller backup' });
         await db.kvSet('lastBackupAt', nowISO());
-        toast(t('backup.done'));
+        toast(t('backup.done'), 3000, null, 'ok');
         return data.counts;
       }
     } catch (e) {
@@ -116,7 +116,7 @@ export async function doBackup({ share = false } = {}) {
     throw e;
   }
   await db.kvSet('lastBackupAt', nowISO());
-  toast(t('backup.done'));
+  toast(t('backup.done'), 3000, null, 'ok');
   return data.counts;
 }
 
@@ -427,7 +427,7 @@ export async function renderBackup(container) {
     },
   });
   wrap.append(
-    el('h3', { class: 'section-title' }, icon('download', 15), t('backup.restoreTitle')),
+    el('h3', { class: 'section-title' }, icon('download', 17), t('backup.restoreTitle')),
     el('div', { class: 'card' },
       el('p', { class: 'small', style: 'margin-top:0' }, t('backup.restoreText')),
       fileInput,

@@ -2,8 +2,9 @@
 
 import { CONFIG, DEMO_SUGGESTIONS } from './config.js';
 import { db, isQuotaError } from './db.js';
-import { el, clear, t, tn, getLang, toast, confirmModal, confirmAsync, modal, fmtBytes, debounce, highlight, uuid, shareApp } from './ui.js';
+import { el, clear, t, tn, getLang, toast, confirmModal, confirmAsync, modal, actionSheet, fmtBytes, debounce, highlight, uuid, shareApp } from './ui.js';
 import { icon } from './icons.js';
+import { art } from './art.js';
 import { openPdf, extractText, isScanned, PdfEngineUnavailable } from './pdfengine.js';
 import { indexManual, unindexManual, unindexPages, persistIndex, searchPages, makeSnippet } from './search.js';
 import { startOcr } from './ocr.js';
@@ -127,7 +128,7 @@ async function importOne(file, extra = {}) {
     // cancel check in setProg here and throw away work that is already saved.
     barFill.style.width = '100%';
     m.close();
-    toast(t('library.imported', { name: prettyName(file.name) }));
+    toast(t('library.imported', { name: prettyName(file.name) }), 3200, null, 'ok');
     return id;
   } catch (e) {
     m.close();
@@ -223,7 +224,7 @@ export async function renderLibrary(container) {
 
   const searchInput = el('input', {
     type: 'search', class: 'search-box', placeholder: t('library.searchAll'),
-    autocomplete: 'off',
+    autocomplete: 'off', 'aria-label': t('common.search'),
     oninput: debounce(async (e) => {
       const q = e.target.value.trim();
       if (q.length < 2) { clear(results); listWrap.style.display = ''; return; }
@@ -233,11 +234,16 @@ export async function renderLibrary(container) {
     }, 350),
   });
 
+  const nManuals = (await db.listManuals()).length;
   container.append(
     fileInput,
     el('div', { class: 'view-pad' },
+      el('div', { class: 'title-row' },
+        el('h2', { class: 'view-title' }, t('library.title'),
+          nManuals ? el('span', { class: 'title-count' }, String(nManuals)) : null),
+      ),
       el('div', { class: 'search-wrap' },
-        el('span', { class: 'search-ico' }, icon('search', 18)),
+        el('span', { class: 'search-ico' }, icon('search', 19)),
         searchInput,
       ),
       results,
@@ -251,7 +257,7 @@ export async function renderLibrary(container) {
 async function runSearch(q, results) {
   const { terms, hits } = await searchPages(q, { limit: 20 });
   clear(results);
-  results.append(el('h3', { class: 'section-title' }, icon('file-search', 15), t('search.resultsFor', { q })));
+  results.append(el('h3', { class: 'section-title' }, icon('file-search', 17), t('search.resultsFor', { q })));
   if (!hits.length) {
     results.append(
       el('p', { class: 'muted' }, t('search.noResults')),
@@ -295,23 +301,22 @@ async function renderManualList(wrap, fileInput, container, runFromChip) {
   clear(wrap);
   const manuals = await db.listManuals();
 
-  wrap.append(el('button', { class: 'btn btn-primary btn-block btn-big', onclick: () => fileInput.click() },
-    icon('plus', 21), t('library.addManual')));
-
-  // "I don't have the manual" is the most-cited BMET pain — point them at the
-  // free public libraries so an empty shelf isn't a dead end. (Clean-room: links only.)
-  // btn-ghost is defined ONLY inside .beta-card, so out here it rendered as an
-  // unstyled grey slab welded to the button above it — use the generic
-  // secondary style and space it off the primary action.
-  wrap.append(el('button', { class: 'btn btn-secondary btn-block', style: 'margin-top:8px', onclick: () => findManual() },
-    icon('globe', 18), t('find.cta')));
+  // "I don't have the manual" is the most-cited BMET pain — the free public
+  // libraries sit right next to Add, so an empty shelf is never a dead end.
+  // (Clean-room: links only.)
+  wrap.append(el('div', { class: 'btn-pair' },
+    el('button', { class: 'btn btn-primary', onclick: () => fileInput.click() },
+      icon('file-plus-2', 20), t('library.addShort')),
+    el('button', { class: 'btn btn-secondary', onclick: () => findManual() },
+      icon('globe', 19), t('find.ctaShort')),
+  ));
 
   // guided suggestions when the demo manual is around (first-experience magic)
   const demoMan = manuals.find(mn => mn.demoLang);
   if (demoMan && manuals.length <= 3) {
     const sugg = DEMO_SUGGESTIONS[demoMan.demoLang] || DEMO_SUGGESTIONS.en;
     wrap.append(
-      el('h3', { class: 'section-title' }, icon('lightbulb', 15), t('library.suggestTitle')),
+      el('h3', { class: 'section-title' }, icon('lightbulb', 17), t('library.suggestTitle')),
       el('div', { class: 'suggest-row' },
         ...sugg.search.map(q => el('button', { class: 'suggest-chip', onclick: () => runFromChip(q) },
           icon('search', 14), q)),
@@ -322,13 +327,14 @@ async function renderManualList(wrap, fileInput, container, runFromChip) {
   if (!manuals.length) {
     wrap.append(
       el('div', { class: 'empty-state' },
-        el('div', { class: 'empty-art' }, icon('book-open', 64)),
+        el('div', { class: 'empty-art' }, art('manuals')),
         el('h2', {}, t('library.emptyTitle')),
         el('p', { class: 'muted' }, t('library.emptyText')),
         el('button', { class: 'btn btn-secondary', onclick: () => importDemo() }, icon('rocket', 18), t('library.demoBtn')),
       ),
     );
   } else {
+    wrap.append(el('h3', { class: 'section-title' }, icon('book-marked', 17), t('library.yours')));
     const list = el('div', { class: 'manual-list' });
     for (const man of manuals) {
       list.append(manualCard(man, container));
@@ -359,7 +365,7 @@ function manualCard(man, container) {
 
   const card = el('div', { class: 'manual-card' },
     el('button', { class: 'manual-main', onclick: () => navigate(`#/reader/${man.id}/1`) },
-      el('div', { class: 'manual-icon' }, icon('file-text', 23)),
+      el('div', { class: 'manual-icon' }, icon('file-text', 22)),
       el('div', { class: 'manual-info' },
         el('div', { class: 'manual-name' }, man.name),
         el('div', { class: 'muted small' },
@@ -369,24 +375,26 @@ function manualCard(man, container) {
     ),
     el('div', { class: 'manual-actions' },
       man.scanned ? el('button', {
-        class: 'btn btn-small btn-secondary',
+        class: 'btn btn-small btn-soft',
         onclick: () => startOcr(man, () => renderLibrary(container)),
       }, icon('scan-text', 15), t('library.makeSearchable')) : null,
-      el('div', { class: 'row', style: 'justify-content:flex-end' },
-        el('button', {
-          class: 'icon-btn', 'aria-label': t('library.rename'),
-          onclick: () => renameManual(man, container),
-        }, icon('pencil', 17)),
-        el('button', {
-          class: 'icon-btn', 'aria-label': t('library.deleteManual'),
-          onclick: () => confirmModal(t('library.deleteConfirm', { name: man.name }), async () => {
-            await unindexManual(man.id);
-            await db.deleteManualCascade(man.id);
-            toast(t('common.done'));
-            renderLibrary(container);
-          }, t('common.delete')),
-        }, icon('trash-2', 17)),
-      ),
+      el('button', {
+        class: 'icon-btn', 'aria-label': t('library.moreOptions') + ': ' + man.name,
+        onclick: () => actionSheet({
+          title: man.name,
+          items: [
+            { icon: 'book-open', label: t('common.open'), onClick: () => navigate(`#/reader/${man.id}/1`) },
+            { icon: 'pencil', label: t('library.rename'), onClick: () => renameManual(man, container) },
+            man.scanned ? { icon: 'scan-text', label: t('library.makeSearchable'), onClick: () => startOcr(man, () => renderLibrary(container)) } : null,
+            { icon: 'trash-2', label: t('library.deleteManual'), danger: true, onClick: () => confirmModal(t('library.deleteConfirm', { name: man.name }), async () => {
+              await unindexManual(man.id);
+              await db.deleteManualCascade(man.id);
+              toast(t('common.done'));
+              renderLibrary(container);
+            }, t('common.delete')) },
+          ],
+        }),
+      }, icon('ellipsis-vertical', 20)),
     ),
   );
   return card;
@@ -407,7 +415,7 @@ function renameManual(man, container) {
           const fresh = await db.getManual(man.id);
           fresh.name = name;
           await db.putManual(fresh);
-          toast(t('library.renamed'));
+          toast(t('library.renamed'), 2400, null, 'ok');
           renderLibrary(container);
         },
       },

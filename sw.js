@@ -24,7 +24,7 @@
 // "update ready" prompt, and only takes over when the user accepts — so an
 // in-progress render/import/OCR is never hot-swapped under a live session.
 
-const VERSION = 'taller-v0.6.1';
+const VERSION = 'taller-v0.7.0';
 const PRECACHE = `${VERSION}-shell`;
 const RUNTIME = 'taller-runtime'; // stable across releases
 
@@ -38,6 +38,7 @@ const CORE = [
   './js/config.js',
   './js/strings.js',
   './js/icons.js',
+  './js/art.js',
   './js/db.js',
   './js/ui.js',
   './js/model.js',

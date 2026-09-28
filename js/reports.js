@@ -5,6 +5,7 @@
 import { db } from './db.js';
 import { el, clear, t, tn, toast, shareText, escapeHtml, copyText, todayISO } from './ui.js';
 import { icon } from './icons.js';
+import { art } from './art.js';
 import { counts, partsList, pmState, pmLabel, statusName, typeName, riskName, typeMeta, fmtDate, downDays, normalizeParts } from './model.js';
 import { printLabels } from './qr.js';
 
@@ -25,7 +26,7 @@ export async function renderReports(container) {
 
   if (!equipment.length) {
     wrap.append(el('div', { class: 'empty-state' },
-      el('div', { class: 'empty-art' }, icon('activity', 64)),
+      el('div', { class: 'empty-art' }, art('equipment')),
       el('p', { class: 'muted' }, t('reports.empty')),
       el('button', { class: 'btn btn-primary', onclick: () => { location.hash = '#/equipment'; } }, icon('plus', 18), t('equipment.add')),
     ));
@@ -47,7 +48,7 @@ export async function renderReports(container) {
   const down = equipment.filter(e => e.status === 'down' || e.status === 'awaiting_parts')
     .map(e => ({ e, days: downDays(e) || 0 })).sort((a, b) => b.days - a.days);
   if (down.length) {
-    wrap.append(el('h3', { class: 'section-title' }, icon('circle-alert', 15), t('reports.downTitle')));
+    wrap.append(el('h3', { class: 'section-title' }, icon('circle-alert', 17), t('reports.downTitle')));
     const dc = el('div', { class: 'card' });
     for (const { e, days } of down) {
       dc.append(el('button', { class: 'pm-line', onclick: () => location.hash = '#/equipment/' + e.id },
@@ -60,7 +61,7 @@ export async function renderReports(container) {
   }
 
   // ---- spare parts request ----
-  wrap.append(el('h3', { class: 'section-title' }, icon('package', 15), t('reports.partsRequest')));
+  wrap.append(el('h3', { class: 'section-title' }, icon('package', 17), t('reports.partsRequest')));
   const partsCard = el('div', { class: 'card' });
   if (!parts.length) partsCard.append(el('p', { class: 'muted small', style: 'margin:0' }, t('reports.noParts')));
   else {
@@ -91,7 +92,7 @@ export async function renderReports(container) {
   }
   const pmTotal = pmGroups.overdue.length + pmGroups.due.length + pmGroups.soon.length;
   const scheduled = equipment.filter(e => pmState(e).scheduled);
-  wrap.append(el('h3', { class: 'section-title' }, icon('shield-check', 15), t('reports.pmTitle')));
+  wrap.append(el('h3', { class: 'section-title' }, icon('shield-check', 17), t('reports.pmTitle')));
   const pmCard = el('div', { class: 'card' });
   if (!pmTotal) pmCard.append(el('p', { class: 'muted small', style: 'margin:0' }, t('reports.pmNone')));
   else {
@@ -114,7 +115,7 @@ export async function renderReports(container) {
   wrap.append(pmCard);
 
   // ---- inventory ----
-  wrap.append(el('h3', { class: 'section-title' }, icon('list', 15), t('reports.inventory')));
+  wrap.append(el('h3', { class: 'section-title' }, icon('list', 17), t('reports.inventory')));
   wrap.append(el('div', { class: 'card' },
     el('p', { class: 'muted small', style: 'margin-top:0' }, tn('reports.inventoryText', c.total)),
     el('div', { class: 'report-actions' },

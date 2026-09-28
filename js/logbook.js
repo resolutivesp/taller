@@ -4,6 +4,7 @@
 import { db, isQuotaError } from './db.js';
 import { el, clear, t, tn, toast, modal, confirmModal, todayISO } from './ui.js';
 import { icon } from './icons.js';
+import { art } from './art.js';
 import { capturePhotoToDb, setPhoto } from './images.js';
 import { normalizeParts, fmtDate } from './model.js';
 import { navigate } from './main.js';
@@ -37,7 +38,7 @@ export async function renderLog(container) {
 
   if (!logs.length) {
     wrap.append(el('div', { class: 'empty-state' },
-      el('div', { class: 'empty-art' }, icon('clipboard-list', 64)),
+      el('div', { class: 'empty-art' }, art('history')),
       el('p', { class: 'muted' }, t('logbook.empty')),
     ));
     return;
@@ -261,7 +262,7 @@ export async function openLogEntry(existing, onSaved) {
           saving = false;
           if (saveBtn) saveBtn.disabled = false;
         }
-        toast(t('logbook.saved'));
+        toast(t('logbook.saved'), 2600, null, 'ok');
         if (onSaved) onSaved(entry);
       },
     },

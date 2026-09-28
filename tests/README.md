@@ -10,7 +10,7 @@ npm i -D playwright          # once
 node tests/serve.js . 8099   # static server, in one terminal
 node tests/e2e.js            # 68 functional checks
 node tests/ui.js             # 42 UI / contrast / touch-target checks (writes screenshots)
-node tests/regressions.js    # 8 checks pinning previously-fixed regressions
+node tests/regressions.js    # 11 checks pinning previously-fixed regressions
 ```
 
 `tests/ui.js` and `tests/e2e.js` expect a Chromium at

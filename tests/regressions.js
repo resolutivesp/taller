@@ -59,6 +59,37 @@ const x=await page.evaluate(async()=>{
   return {n:es.excerpts.length, conf:es.confidence};
 });
 check('a cross-language question still retrieves excerpts (AI no longer suppressed)', x.n>0, JSON.stringify(x));
+// 5. v0.7: the Equipment TAB must keep the app bar and the tab bar.
+// classList.toggle('reader-mode', undefined) is a plain toggle, so opening the
+// list from Home used to hide both bars and freeze the list.
+await page.evaluate(()=>{location.hash='#/'});await page.waitForTimeout(500);
+await page.evaluate(()=>{location.hash='#/equipment'});await page.waitForTimeout(700);
+const bars=await page.evaluate(()=>({mode:document.body.classList.contains('reader-mode'),tabs:document.getElementById('tabs').getBoundingClientRect().height,bar:document.getElementById('appbar').getBoundingClientRect().height}));
+check('Equipment tab keeps the tab bar and app bar (no reader-mode)', !bars.mode&&bars.tabs>0&&bars.bar>0, JSON.stringify(bars));
+
+// 6. v0.7: an inline citation to a page number shared by two manuals is only
+// linked when the manual is named before it — never to an arbitrary one.
+const cit=await page.evaluate(async()=>{
+  const {resolveCitations}=await import('./js/ask.js');
+  const ex=[{manualId:'A',manualName:'Pump manual',page:7},{manualId:'B',manualName:'Clinic copy',page:7},{manualId:'A',manualName:'Pump manual',page:9}];
+  const r=resolveCitations('See (Clinic copy, p. 7) then (p. 9) and (p. 7).',ex);
+  return r.map(c=>c.page+':'+c.mid);
+});
+check('shared page numbers resolve by manual name, else stay unlinked', JSON.stringify(cit)==='["7:B","9:A","7:null"]', JSON.stringify(cit));
+
+// 7. v0.7: "Remove demo" deletes only the demo machine, its records and the
+// demo manual — real data stays.
+const rd=await page.evaluate(async()=>{
+  const {db}=await import('./js/db.js');
+  await db.putEquipment({id:'real1',name:'Real monitor',type:'patient_monitor',status:'working',parts:[]});
+  await db.putLog({date:'2026-01-01',equipmentId:'real1',type:'repair',status:'fixed',problem:'real work'});
+  const {removeDemo}=await import('./js/home.js');
+  await removeDemo();
+  const eqs=await db.listEquipment();const mans=await db.listManuals();const logs=await db.listLogs();
+  return {demoEq:eqs.filter(e=>e.demo).length,real:eqs.some(e=>e.id==='real1'),demoMan:mans.filter(m=>m.demoLang).length,realLog:logs.some(l=>l.problem==='real work')};
+});
+check('removeDemo removes demo machine + manual and keeps real data', rd.demoEq===0&&rd.demoMan===0&&rd.real&&rd.realLog, JSON.stringify(rd));
+
 check('no page errors', errs.length===0, errs.slice(0,2).join(' | '));
 await b.close();
 console.log('\n'+'='.repeat(60));console.log(`FINAL: ${pass} passed, ${fail} failed`);

@@ -31,7 +31,7 @@ In many hospitals, 38–40 % of medical equipment sits out of service — and a 
 - **🔎 Find a manual you don't have** — the most-cited pain for a technician is not having the manual at all. One tap opens the free public manual libraries (iFixit Biomedical, Frank's Hospital Workshop, MedWrench), pre-filled with the machine's make and model, so an empty shelf isn't a dead end. Taller only links out — it hosts nothing.
 - **💬 Ask your manuals** — describe a fault; get the best-matching manual passages with page numbers. With internet (optional), an AI answers *grounded only in those excerpts*, citing pages — it refuses to invent. One tap also copies a ready-made grounded prompt for ChatGPT/any AI. From any machine, "Ask the manual" is pre-scoped to its manual.
 - **📷 Scanned manuals** — detected automatically; optional on-device OCR makes them searchable.
-- **🌍 English · Français · Español · Português** — full UI (incl. ~28 localized equipment types) plus demo manuals in EN and FR.
+- **🌍 English · Français · Español · Português** — full UI (incl. ~28 localized equipment types) plus a demo manual in each language.
 - **🖥️ Desktop-friendly** — open the link on a workshop PC and scan the QR code to move it to your phone.
 
 ## Principles (non-negotiable)

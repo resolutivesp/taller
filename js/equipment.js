@@ -5,6 +5,7 @@
 import { db, isQuotaError } from './db.js';
 import { el, clear, t, tn, toast, modal, confirmModal, confirmAsync, todayISO, uuid, debounce } from './ui.js';
 import { icon } from './icons.js';
+import { art } from './art.js';
 import { EQUIPMENT_TYPES, EQUIPMENT_STATUS, PM_PRESETS, DEMO_EQUIPMENT } from './config.js';
 import {
   typeMeta, typeName, STATUS_META, statusName, riskName, pmState, pmNeedsAction,
@@ -60,46 +61,54 @@ export async function renderEquipment(container, params = {}) {
   container.append(wrap);
 
   const equipment = await db.listEquipment();
+  const add = () => equipmentForm(null, () => renderEquipment(container));
 
-  wrap.append(
+  // The total lives on the "All" chip below; the title row keeps room for a
+  // long title ("Equipamentos") next to the Add button in every language.
+  wrap.append(el('div', { class: 'title-row' },
     el('h2', { class: 'view-title' }, t('equipment.title')),
-    el('div', { class: 'row', style: 'gap:10px' },
-      el('button', { class: 'btn btn-primary btn-big', style: 'flex:1', onclick: () => equipmentForm(null, () => renderEquipment(container)) },
-        icon('plus', 21), t('equipment.add')),
-      el('button', { class: 'btn btn-secondary btn-big', 'aria-label': t('scan.title'), onclick: () => openScanner() },
-        icon('qr-code', 21), t('scan.scan')),
-    ),
-  );
+    equipment.length ? el('button', { class: 'btn btn-primary btn-small', onclick: add }, icon('plus', 18), t('common.add')) : null,
+  ));
 
   if (!equipment.length) {
     wrap.append(el('div', { class: 'empty-state' },
-      el('div', { class: 'empty-art' }, icon('wrench', 64)),
+      el('div', { class: 'empty-art' }, art('equipment')),
       el('h2', {}, t('equipment.emptyTitle')),
       el('p', { class: 'muted' }, t('equipment.emptyText')),
-      el('button', { class: 'btn btn-primary', onclick: () => equipmentForm(null, () => renderEquipment(container)) }, icon('plus', 18), t('equipment.add')),
+      el('button', { class: 'btn btn-primary btn-big', onclick: add }, icon('plus', 20), t('equipment.add')),
     ));
     return;
   }
 
-  // filter state (may be preset from a Home tile deep-link, e.g. ?filter=pmdue)
+  // filter state (may be preset from a Home deep-link, e.g. ?filter=pmdue)
   const valid = new Set(['all', 'pmdue', ...EQUIPMENT_STATUS]);
   let filter = valid.has(params.filter) ? params.filter : 'all';
+  const cnt = { all: equipment.length, pmdue: equipment.filter(e => pmNeedsAction(pmState(e).state)).length };
+  for (const s of EQUIPMENT_STATUS) cnt[s] = equipment.filter(e => e.status === s).length;
+
   const listEl = el('div', { class: 'eq-list' });
-  const search = el('input', { type: 'search', class: 'search-box', placeholder: t('equipment.searchPh'), autocomplete: 'off' });
+  const search = el('input', { type: 'search', class: 'search-box', placeholder: t('equipment.searchPh'), autocomplete: 'off', 'aria-label': t('common.search') });
   let q = '';
   search.addEventListener('input', debounce(() => { q = search.value.trim().toLowerCase(); paint(); }, 200));
 
+  // Filters with nothing in them are hidden (except the active one): a row of
+  // six chips where four say "0" is noise, and the counts answer the question
+  // before the tap.
   const filterRow = el('div', { class: 'chip-row scroll-x' });
   const filters = [['all', t('equipment.filterAll')], ['pmdue', t('pm.due')], ...EQUIPMENT_STATUS.map(s => [s, statusName(s)])];
   for (const [key, label] of filters) {
+    if (key !== 'all' && key !== filter && !cnt[key]) continue;
     filterRow.append(el('button', {
       class: 'chip' + (filter === key ? ' active' : ''),
       onclick: (e) => { filter = key; filterRow.querySelectorAll('.chip').forEach(c => c.classList.remove('active')); e.target.closest('.chip').classList.add('active'); paint(); },
-    }, label));
+    }, label, el('span', { class: 'chip-n' }, String(cnt[key]))));
   }
 
   wrap.append(
-    el('div', { class: 'search-wrap', style: 'margin-top:12px' }, el('span', { class: 'search-ico' }, icon('search', 18)), search),
+    el('div', { class: 'search-row' },
+      el('div', { class: 'search-wrap' }, el('span', { class: 'search-ico' }, icon('search', 19)), search),
+      el('button', { class: 'round-tool', 'aria-label': t('scan.title'), onclick: () => openScanner() }, icon('qr-code', 22)),
+    ),
     filterRow,
     listEl,
   );
@@ -110,40 +119,65 @@ export async function renderEquipment(container, params = {}) {
     if (filter === 'pmdue') items = items.filter(e => pmNeedsAction(pmState(e).state));
     else if (filter !== 'all') items = items.filter(e => e.status === filter);
     if (q) items = items.filter(e => (`${e.name} ${typeName(e.type)} ${e.model || ''} ${e.serial || ''} ${e.location || ''} ${e.assetTag || ''}`).toLowerCase().includes(q));
-    if (!items.length) { listEl.append(el('p', { class: 'muted small center', style: 'padding:20px' }, t('equipment.noneMatch'))); return; }
+    if (!items.length) { listEl.append(el('p', { class: 'muted small center', style: 'padding:24px 8px' }, t('equipment.noneMatch'))); return; }
     for (const eq of items) listEl.append(equipmentCard(eq));
   }
   paint();
+}
+
+// A recognisable glyph when there is no photo yet.
+const TYPE_ICON = {
+  patient_monitor: 'heart-pulse', ecg: 'heart-pulse', defibrillator: 'zap', fetal_doppler: 'heart-pulse',
+  pulse_oximeter: 'heart-pulse', bp_monitor: 'heart-pulse', electrosurgical: 'zap',
+  oxygen_concentrator: 'gauge', ventilator: 'gauge', anaesthesia: 'gauge', cpap: 'gauge', suction_pump: 'gauge',
+  autoclave: 'gauge', infusion_pump: 'activity', syringe_pump: 'activity', infant_incubator: 'shield-check',
+  infant_warmer: 'shield-check', phototherapy: 'lightbulb', exam_light: 'lightbulb', vaccine_fridge: 'box',
+  battery: 'battery-charging',
+};
+function typeIcon(type) { return TYPE_ICON[type] || 'wrench'; }
+
+// Keep model codes such as "SP-100" whole when a long name wraps: the line
+// used to break after the hyphen, leaving "SP-" and "100" on two lines.
+function titleNodes(name) {
+  return String(name || '').split(/(\s+)/).map(w => (/\S-\S/.test(w) ? el('span', { style: 'white-space:nowrap' }, w) : w));
+}
+
+// What to show under the name without repeating it: the demo pump is named
+// "Suction pump · SP-100", which used to appear three times on one screen.
+function subLine(eq) {
+  const name = (eq.name || '').toLowerCase();
+  const parts = [typeName(eq.type), eq.model].filter(x => x && !name.includes(String(x).toLowerCase()));
+  if (!parts.length && eq.manufacturer) parts.push(eq.manufacturer);
+  return parts.join(' · ');
 }
 
 function equipmentCard(eq) {
   const st = STATUS_META[eq.status] || STATUS_META.working;
   const pm = pmState(eq);
   const thumb = el('img', { class: 'eq-thumb', alt: '' });
-  const icoBox = el('div', { class: 'eq-thumb eq-thumb-ico' }, icon('wrench', 24));
+  const icoBox = el('div', { class: 'eq-thumb eq-thumb-ico' }, icon(typeIcon(eq.type), 26));
   if (eq.photoId) setPhoto(thumb, eq.photoId);
 
-  const pmChip = pm.state === 'unknown'
-    ? el('span', { class: 'badge pm-unknown' }, icon('clock', 12), t('pm.unknownShort'))
-    : pmNeedsAction(pm.state)
-    ? el('span', { class: 'badge badge-warn' }, icon('clock', 12), t('pm.due'))
-    : (pm.state === 'soon' ? el('span', { class: 'badge badge-soon' }, icon('clock', 12), t('pm.soon')) : null);
+  // Working machines carry only the green dot; everything that needs the
+  // technician gets a labelled pill, so the list reads like a to-do list.
+  const badges = [];
+  if (eq.status !== 'working') badges.push(el('span', { class: 'badge ' + st.cls }, icon(st.icon, 12), statusName(eq.status)));
   const dd = downDays(eq);
-  const downChip = dd ? el('span', { class: 'badge st-part' }, icon('clock', 12), t('equipment.downDays', { n: dd })) : null;
+  if (dd) badges.push(el('span', { class: 'badge st-part' }, icon('clock', 12), t('equipment.downDays', { n: dd })));
+  if (pm.state === 'unknown') badges.push(el('span', { class: 'badge pm-unknown' }, icon('clock', 12), t('pm.unknownShort')));
+  else if (pmNeedsAction(pm.state)) badges.push(el('span', { class: 'badge ' + (pm.state === 'overdue' ? 'st-part' : 'badge-warn') }, icon('clock', 12), t('pm.due')));
+  else if (pm.state === 'soon') badges.push(el('span', { class: 'badge badge-soon' }, icon('clock', 12), t('pm.soon')));
 
   return el('button', { class: 'eq-card', onclick: () => navigate('#/equipment/' + eq.id) },
-    eq.photoId ? thumb : icoBox,
+    el('div', { class: 'eq-thumb-wrap' },
+      eq.photoId ? thumb : icoBox,
+      el('span', { class: 'eq-dot ' + eq.status }, el('span', { class: 'sr-only' }, statusName(eq.status))),
+    ),
     el('div', { class: 'eq-info' },
       el('div', { class: 'eq-name' }, eq.name),
-      el('div', { class: 'muted small eq-sub' }, typeName(eq.type) + (eq.model ? ' · ' + eq.model : '')),
-      el('div', { class: 'eq-meta' },
-        eq.location ? el('span', { class: 'eq-loc small muted' }, icon('map-pin', 12), eq.location) : null,
-      ),
-      el('div', { class: 'eq-badges' },
-        el('span', { class: 'badge ' + st.cls }, icon(st.icon, 12), statusName(eq.status)),
-        downChip,
-        pmChip,
-      ),
+      el('div', { class: 'muted small eq-sub' }, subLine(eq)),
+      eq.location ? el('div', { class: 'eq-meta' }, el('span', { class: 'eq-loc small muted' }, icon('map-pin', 13), eq.location)) : null,
+      badges.length ? el('div', { class: 'eq-badges' }, ...badges) : null,
     ),
     el('span', { class: 'eq-chevron' }, icon('chevron-right', 20)),
   );
@@ -156,15 +190,14 @@ export async function renderEquipmentDetail(container, id) {
   if (!eq) { navigate('#/equipment'); return; }
   const refresh = () => renderEquipmentDetail(container, id);
 
-  const st = STATUS_META[eq.status] || STATUS_META.working;
   const pm = pmState(eq);
   const manual = eq.manualId ? await db.getManual(eq.manualId) : null;
   const logs = await db.logsForEquipment(id);
 
   const header = el('div', { class: 'detail-header' },
-    el('button', { class: 'icon-btn', 'aria-label': t('common.back'), onclick: () => navigate('#/equipment') }, icon('chevron-left', 22)),
+    el('button', { class: 'icon-btn', 'aria-label': t('common.back'), onclick: () => navigate('#/equipment') }, icon('chevron-left', 24)),
     el('div', { class: 'reader-title' }, eq.name),
-    el('button', { class: 'icon-btn', 'aria-label': t('common.edit'), onclick: () => equipmentForm(eq, refresh) }, icon('pencil', 18)),
+    el('button', { class: 'icon-btn', 'aria-label': t('common.edit'), onclick: () => equipmentForm(eq, refresh) }, icon('pencil', 19)),
   );
 
   // hero photo
@@ -180,25 +213,34 @@ export async function renderEquipmentDetail(container, id) {
       refresh();
     } catch (e) { toast(t(isQuotaError(e) ? 'common.storageFull' : 'common.error'), 5000); }
   } });
-  if (eq.photoId) { setPhoto(heroImg, eq.photoId); heroBox.append(heroImg); }
-  else heroBox.append(el('div', { class: 'eq-hero-empty' }, icon('camera', 30), el('span', { class: 'small' }, t('equipment.addPhoto'))));
+  if (eq.photoId) {
+    setPhoto(heroImg, eq.photoId);
+    heroBox.setAttribute('aria-label', t('equipment.changePhoto'));
+    heroBox.append(heroImg, el('span', { class: 'eq-hero-cam' }, icon('camera', 18)));
+  } else {
+    heroBox.append(el('div', { class: 'eq-hero-empty' },
+      el('span', { class: 'cam' }, icon('camera', 24)), el('span', { class: 'small' }, t('equipment.addPhoto'))));
+  }
 
   // status quick-set (records when the status changed → downtime tracking)
-  const statusRow = el('div', { class: 'chip-row scroll-x' });
+  // Toggle buttons, not radios: every press SAVES the machine's status, so
+  // arrow-key radio semantics (which select as you move) would be a trap.
+  const statusRow = el('div', { class: 'status-grid', role: 'group', 'aria-label': t('equipment.setStatus') });
   for (const s of EQUIPMENT_STATUS) {
-    const sm = STATUS_META[s];
     statusRow.append(el('button', {
-      class: 'chip' + (eq.status === s ? ' active' : ''),
+      class: 'status-opt' + (eq.status === s ? ' active' : ''), dataset: { s },
+      'aria-pressed': eq.status === s ? 'true' : 'false',
       onclick: async () => {
+        if (eq.status === s) return;
         // only reset the downtime clock when a machine BECOMES out of service,
         // so toggling down ↔ awaiting-parts doesn't zero continuous downtime
         if (isOOS(s) && !isOOS(eq.status)) eq.statusSince = todayISO();
         eq.status = s;
         await db.putEquipment(eq);
-        toast(t('equipment.statusSet', { s: statusName(s) }));
+        toast(t('equipment.statusSet', { s: statusName(s) }), 2600, null, 'ok');
         refresh();
       },
-    }, icon(sm.icon, 14), statusName(s)));
+    }, el('span', { class: 'so-dot' }), statusName(s)));
   }
   const dd = downDays(eq);
   const downLine = (dd !== null)
@@ -213,7 +255,7 @@ export async function renderEquipmentDetail(container, id) {
       await db.putEquipment(eq);
       await db.putLog({ date: todayISO(), equipmentId: id, type: 'pm', status: 'fixed', problem: t('pm.autoNote'), minutes: null, photoId: null });
       await db.counterBump('logEntries');
-      toast(t('pm.doneToast'));
+      toast(t('pm.doneToast'), 2800, null, 'ok');
       refresh();
     }) : null,
     actionBtn('message-circle-question', 'equipment.ask', () => navigate('#/ask' + (manual ? '?manual=' + manual.id : ''))),
@@ -240,7 +282,7 @@ export async function renderEquipmentDetail(container, id) {
 
   // manual link
   const manualCard = el('div', { class: 'card section' },
-    el('h3', { class: 'section-title' }, icon('book-open', 15), t('equipment.manual')),
+    el('h3', { class: 'section-title' }, icon('book-open', 17), t('equipment.manual')),
     manual
       ? el('button', { class: 'result-card', onclick: () => navigate('#/reader/' + manual.id + '/1') },
           el('div', { class: 'result-manual' }, icon('file-text', 15), manual.name))
@@ -253,21 +295,21 @@ export async function renderEquipmentDetail(container, id) {
   // history
   const histCard = el('div', { class: 'card section' },
     el('div', { class: 'row', style: 'justify-content:space-between' },
-      el('h3', { class: 'section-title', style: 'margin:0' }, icon('clipboard-list', 15), t('equipment.history')),
+      el('h3', { class: 'section-title', style: 'margin:0' }, icon('clipboard-list', 17), t('equipment.history')),
       el('button', { class: 'btn btn-small btn-secondary', onclick: () => openLogEntry({ equipmentId: id, __lockEquipment: true }, refresh) }, icon('plus', 14), t('logbook.newEntry')),
     ),
     historyTimeline(logs, refresh),
   );
 
   const notesCard = eq.notes ? el('div', { class: 'card section' },
-    el('h3', { class: 'section-title' }, icon('pencil', 15), t('equipment.notes')),
+    el('h3', { class: 'section-title' }, icon('pencil', 17), t('equipment.notes')),
     el('p', { class: 'small' }, eq.notes)) : null;
 
   // QR label + printable record
   const qrBox = el('div', { class: 'qr-mini' });
   qrInto(qrBox, eq.id, 3);
   const labelsCard = el('div', { class: 'card section' },
-    el('h3', { class: 'section-title' }, icon('qr-code', 15), t('qr.title')),
+    el('h3', { class: 'section-title' }, icon('qr-code', 17), t('qr.title')),
     el('div', { class: 'qr-row' },
       qrBox,
       el('div', { style: 'flex:1' },
@@ -288,21 +330,24 @@ export async function renderEquipmentDetail(container, id) {
   container.append(header,
     el('div', { class: 'detail-scroll' },
       heroBox,
-      el('div', { class: 'view-pad', style: 'padding-top:12px' },
+      el('div', { class: 'det-card' },
         el('div', { class: 'detail-titlerow' },
           el('div', {},
-            el('h2', { class: 'detail-name' }, eq.name),
-            el('p', { class: 'muted small', style: 'margin:2px 0 0' }, typeName(eq.type)),
+            el('h2', { class: 'detail-name' }, titleNodes(eq.name)),
+            el('p', { class: 'det-sub' },
+              subLine(eq) ? el('span', {}, icon('tag', 14), subLine(eq)) : null,
+              eq.location ? el('span', {}, icon('map-pin', 14), eq.location) : null,
+            ),
           ),
-          el('span', { class: 'badge ' + st.cls + ' badge-lg' }, icon(st.icon, 14), statusName(eq.status)),
         ),
-        el('label', { class: 'lbl' }, t('equipment.setStatus')),
         statusRow,
         downLine,
         actions,
+      ),
+      el('div', { class: 'view-pad', style: 'padding-top:4px' },
         pmStateChip,
         el('div', { class: 'card section' },
-          el('h3', { class: 'section-title' }, icon('list', 15), t('equipment.specs')),
+          el('h3', { class: 'section-title' }, icon('list', 17), t('equipment.specs')),
           specs,
         ),
         partsCard,
@@ -317,12 +362,12 @@ export async function renderEquipmentDetail(container, id) {
 }
 
 function actionBtn(ico, key, onclick) {
-  return el('button', { class: 'action-btn', onclick }, icon(ico, 22), el('span', {}, t(key)));
+  return el('button', { class: 'action-btn', onclick }, el('span', { class: 'ab-ico' }, icon(ico, 23)), el('span', {}, t(key)));
 }
 
 function specItem(ico, key, value) {
   return el('div', { class: 'spec-item' },
-    el('span', { class: 'spec-ico' }, icon(ico, 15)),
+    el('span', { class: 'spec-ico' }, icon(ico, 16)),
     el('div', {}, el('span', { class: 'spec-label' }, t(key)), el('span', { class: 'spec-value' }, value || '—')),
   );
 }
@@ -330,7 +375,7 @@ function specItem(ico, key, value) {
 function pmCard(eq, pm) {
   if (!pm.scheduled) {
     return el('div', { class: 'card section' },
-      el('h3', { class: 'section-title' }, icon('shield-check', 15), t('pm.title')),
+      el('h3', { class: 'section-title' }, icon('shield-check', 17), t('pm.title')),
       el('p', { class: 'muted small', style: 'margin:0' }, t('pm.none')),
     );
   }
@@ -340,15 +385,24 @@ function pmCard(eq, pm) {
     : pm.state === 'due' ? t('pm.dueToday')
     : pm.state === 'soon' ? tn('pm.dueIn', pm.days, { n: pm.days })
     : t('pm.nextOn', { d: fmtDate(pm.nextIso) });
+  // How far through the interval we are: a bar reads faster than a date.
+  let frac = null;
+  if (pm.state !== 'unknown' && eq.pmDays && pm.days !== null) {
+    frac = pm.state === 'overdue' ? 1 : Math.max(0.04, Math.min(1, (eq.pmDays - pm.days) / eq.pmDays));
+  }
+  const fillCls = { overdue: 'pm-overdue', due: 'pm-overdue', soon: 'pm-soon' }[pm.state] || '';
   return el('div', { class: 'card section pm-card ' + stateCls },
-    el('h3', { class: 'section-title' }, icon('shield-check', 15), t('pm.title')),
+    el('h3', { class: 'section-title' }, icon('shield-check', 17), t('pm.title')),
     el('div', { class: 'pm-row' },
       el('div', {}, el('span', { class: 'spec-label' }, t('pm.every')), el('span', { class: 'spec-value' }, t('pm.everyDays', { n: eq.pmDays }))),
       el('div', {}, el('span', { class: 'spec-label' }, t('pm.lastDone')), el('span', { class: 'spec-value' }, eq.lastPmDate ? fmtDate(eq.lastPmDate) : '—')),
     ),
-    el('div', { class: 'pm-state ' + stateCls }, icon('clock', 15), stateLabel),
-    el('button', { class: 'btn btn-small btn-secondary', style: 'margin-top:10px', onclick: () => exportPmCalendar([eq]) },
-      icon('calendar', 15), t('pm.remind')),
+    frac !== null ? el('div', { class: 'pm-track' }, el('div', { class: 'pm-fill ' + fillCls, style: `width:${Math.round(frac * 100)}%` })) : null,
+    el('div', { class: 'pm-foot' },
+      el('div', { class: 'pm-state ' + stateCls }, icon('clock', 15), stateLabel),
+      el('button', { class: 'btn btn-small btn-secondary', onclick: () => exportPmCalendar([eq]) },
+        icon('calendar-clock', 16), t('pm.remind')),
+    ),
   );
 }
 
@@ -356,7 +410,7 @@ function renderPartsCard(eq, refresh) {
   const card = el('div', { class: 'card section' });
   const rebuild = () => {
     clear(card);
-    card.append(el('h3', { class: 'section-title' }, icon('package', 15), t('equipment.partsNeeded')));
+    card.append(el('h3', { class: 'section-title' }, icon('package', 17), t('equipment.partsNeeded')));
     eq.parts = normalizeParts(eq); // migrate legacy strings in place
     const parts = eq.parts;
     if (!parts.length) card.append(el('p', { class: 'muted small' }, t('equipment.noParts')));
@@ -576,7 +630,7 @@ export async function equipmentForm(existing, onSaved, prefill = {}) {
     if (!isNew && originalPhoto && originalPhoto !== photoId) { try { await db.deletePhoto(originalPhoto); } catch (e) { /* ignore */ } }
     if (isNew) await db.counterBump('equipmentAdded');
     requestPersist();
-    toast(t('equipment.saved'));
+    toast(t('equipment.saved'), 2600, null, 'ok');
     if (onSaved) onSaved(eq);
     return true;
   };

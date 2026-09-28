@@ -1,6 +1,7 @@
 // Taller — tiny UI helpers: DOM builder, i18n, toasts, modals, hash router glue.
 
 import { STRINGS } from './strings.js';
+import { icon } from './icons.js';
 
 // ---------- i18n ----------
 let _lang = null;
@@ -93,15 +94,18 @@ export function highlight(text, terms) {
 // ---------- toast ----------
 // action (optional): { label, onClick } renders a tappable button (e.g. Undo,
 // or "Reload" for an update) and extends the visible time.
+// kind (optional): 'ok' shows a check — for confirmations of something the
+// technician just did (saved, added, recorded). Errors and notices stay plain.
 let toastTimer = null;
-export function toast(msg, ms = 2600, action = null) {
+export function toast(msg, ms = 2600, action = null, kind = null) {
   let tEl = document.getElementById('toast');
   if (!tEl) {
     tEl = el('div', { id: 'toast', role: 'status', 'aria-live': 'polite' });
     document.body.append(tEl);
   }
   clear(tEl);
-  tEl.append(el('span', {}, msg));
+  if (kind === 'ok') tEl.append(el('span', { class: 'toast-ico' }, icon('circle-check', 20)));
+  tEl.append(el('span', { class: 'toast-msg' }, msg));
   if (action && action.label) {
     tEl.append(el('button', {
       class: 'toast-action',
@@ -173,6 +177,31 @@ export function modal({ title, body, actions = [], onClose }) {
     }
   };
   document.addEventListener('keydown', onKey);
+
+  // The sheet shows a drag handle, so dragging it down must dismiss it.
+  // Only from the top strip (handle + title), never from the scrolling body,
+  // so it cannot fight a form being scrolled. The entrance animation is
+  // dropped once finished: a filled animation would override the drag.
+  box.addEventListener('animationend', () => { box.style.animation = 'none'; }, { once: true });
+  let dragY0 = null, dragDy = 0;
+  box.addEventListener('touchstart', (e) => {
+    const tch = e.touches && e.touches[0];
+    if (!tch || tch.clientY - box.getBoundingClientRect().top > 40) return;
+    if (matchMedia('(min-width: 560px)').matches) return;
+    dragY0 = tch.clientY; dragDy = 0; box.style.transition = 'none';
+  }, { passive: true });
+  box.addEventListener('touchmove', (e) => {
+    if (dragY0 === null) return;
+    dragDy = Math.max(0, e.touches[0].clientY - dragY0);
+    box.style.transform = `translateY(${dragDy}px)`;
+  }, { passive: true });
+  box.addEventListener('touchend', () => {
+    if (dragY0 === null) return;
+    dragY0 = null; box.style.transition = 'transform .2s ease';
+    if (dragDy > 90) { box.style.transform = 'translateY(110%)'; setTimeout(close, 170); }
+    else box.style.transform = '';
+  });
+
   overlay.append(box);
   overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
   document.body.append(overlay);
@@ -194,6 +223,22 @@ export function confirmModal(text, onYes, yesLabel, title) {
       { label: yesLabel || t('common.ok'), kind: 'btn-danger', onClick: onYes },
     ],
   });
+}
+
+// Action sheet: a bottom sheet of big, labelled rows (overflow menus).
+// items: [{ icon, label, onClick, danger }]. The sheet closes first, then the
+// action runs, so an action that opens its own dialog never stacks on this one.
+export function actionSheet({ title, items }) {
+  let m = null;
+  const list = el('div', { class: 'sheet-list' });
+  for (const it of items.filter(Boolean)) {
+    list.append(el('button', {
+      class: 'sheet-item' + (it.danger ? ' danger' : ''),
+      onclick: () => { m.close(); setTimeout(() => { try { it.onClick(); } catch (e) { /* ignore */ } }, 30); },
+    }, el('span', { class: 'sheet-ico' }, icon(it.icon, 19)), el('span', {}, it.label)));
+  }
+  m = modal({ title, body: list, actions: [{ label: t('common.close'), kind: 'btn-secondary' }] });
+  return m;
 }
 
 // Promise-based confirm: resolves true/false.

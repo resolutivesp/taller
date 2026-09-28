@@ -1,13 +1,13 @@
 {
   "name": "Taller — offline workshop for biomedical technicians",
   "short_name": "Taller",
-  "description": "Your PDF service manuals, searchable offline, with answers grounded in the exact page. Free and open source, for biomedical equipment technicians.",
+  "description": "Equipment register, preventive maintenance and your PDF service manuals — searchable offline, with answers grounded in the exact page. Free and open source, for biomedical equipment technicians.",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
   "orientation": "portrait",
-  "background_color": "#f2f5f7",
-  "theme_color": "#0f766e",
+  "background_color": "#f2f5f8",
+  "theme_color": "#0c7f73",
   "lang": "en",
   "categories": ["medical", "utilities", "productivity"],
   "icons": [
