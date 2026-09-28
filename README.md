@@ -5,10 +5,9 @@
 Keep a register of every machine you look after — with its status, maintenance schedule, spare parts and service history — right next to the **searchable service manuals** and a **grounded AI assistant** that answers only from those manuals. All offline, all on your phone, free forever.
 
 <p align="center">
-  <img src="docs/img/shot-home.png" width="215" alt="Dashboard: what's down, what's due, parts needed">
-  <img src="docs/img/shot-equipment.png" width="215" alt="Equipment record: status, PM, manual, history">
-  <img src="docs/img/shot-reader.png" width="215" alt="Search jumps to the exact page, terms highlighted">
-  <img src="docs/img/shot-reports.png" width="215" alt="Fleet status report and spare-parts request">
+  <img src="docs/img/shot-home.png" width="240" alt="Dashboard: what's down, what's due, parts needed">
+  <img src="docs/img/shot-equipment.png" width="240" alt="Equipment record: status, PM, manual, history">
+  <img src="docs/img/shot-reader.png" width="240" alt="Search jumps to the exact page, terms highlighted">
 </p>
 
 > **Status: BETA.** This version exists so real technicians can tell us whether it's worth building properly. Try it with one of your own manuals and use the in-app "60-second feedback" — brutal honesty welcome. If technicians say it helps, it gets built seriously. If not, we'll build something else that does.
